@@ -1,0 +1,1 @@
+{"spiffsv":"IOT5.spiffs","wifimode":"WIFI_STA","SSID":"Next-Network","presharedkey":"1458635297","APname":"ESP-Master1","APsharedkey":"12345678"}
