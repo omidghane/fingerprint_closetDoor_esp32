@@ -370,6 +370,7 @@ void offline_attendance() {
     return;
   }
   while (myFile.available()) {
+    Serial.println("attendanee reading");
     String finger_id = myFile.readStringUntil('\n');
     // Serial.println("finger_id is: " + finger_id);
     String time = myFile.readStringUntil('\n');
