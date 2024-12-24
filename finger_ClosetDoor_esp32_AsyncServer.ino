@@ -1,17 +1,23 @@
 
 //NodeMCU--------------------------
+// #include <ArduinoTrace.h>
 #include <WiFiClient.h>
-  #include <WiFi.h>
-#include <WebServer.h>
+#include <WiFi.h>
+#include <AsyncTCP.h>
 #include <mDNS.h>
 #include <HTTPClient.h>
-#include <NetworkClient.h>
-#include <HTTPUpdateServer.h>
+
+#include <ESPAsyncWebServer.h>
+// #include <ESPAsyncHTTPUpdateServer.h>
+
+// #include <WebServer.h>
+// #include <HTTPUpdateServer.h>
 #include <SimpleTimer.h>  //https://github.com/jfturcot/SimpleTimer
-// #include <Base64.h>
 #include <DNSServer.h>
 
-#include <FS.h>
+// #include <FS.h>
+#include <SPIFFS.h>
+#include <string> 
 //OLED-----------------------------
 #include <SPI.h>
 #include <Wire.h>
@@ -23,8 +29,10 @@
 #include <TimeLib.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <esp_now.h>
 
 #include <ArduinoJson.h>
+#include <map>
 //************************************************************************
 //Fingerprint scanner Pins
 #define Finger_Rx 14  //D5
@@ -75,12 +83,15 @@ IPAddress SUBNET;
 IPAddress GATEWAY;
 IPAddress DNS;
 /* Soft AP network parameters */
-IPAddress apIP(192, 168, 4, 1);
+IPAddress apIP(192, 168, 5, 1);
 IPAddress netMsk(255, 255, 255, 0);
 
-WebServer server(60);
-HTTPUpdateServer httpUpdater;
+// WebServer server(60);
+// HTTPUpdateServer httpUpdater;
+// ESPAsyncHTTPUpdateServer httpUpdater;
+AsyncWebServer server(80);
 
+String URL = "http://192.168.3.13";
 
 //************************************************************************
 String getData, Link;
@@ -93,6 +104,7 @@ unsigned long previousMillis = 0;
 
 bool dataSended = false;
 int global_id = 0;
+int global_fingerID;
 String accessToken;
 String refreshToken;
 
@@ -111,11 +123,36 @@ unsigned long lastSend;
 const int16_t I2C_MASTER = 0x42;
 const int16_t I2C_SLAVE = 0x08;
 
+uint8_t broadcastAddress1[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0xC3 };
+// uint8_t broadcastAddress1[] = {0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0x57};
+uint8_t broadcastAddress2[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74 };
+uint8_t broadcastAddress3[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x70, 0x05 };
+uint8_t broadcastAddress4[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x72, 0x09 };
+// uint8_t broadcastAddress5[] = {0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74};
+// uint8_t broadcastAddress6[] = {0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74};
+uint8_t broadcastAddress[6];
+// 84:F3:EB:B4:70:05
+
+std::map<int, String> finger_closet;
+
+esp_now_peer_info_t peerInfo;
+
+typedef struct message {
+  int id;
+} message;
+message myMessage;
+
+
 //************************************************************************
 void setup() {
+
   WiFi.disconnect();
   Serial.begin(115200);
-  SPIFFS.begin();
+  if (!SPIFFS.begin(true)) { // Format SPIFFS if mount fails
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return;
+  }
+  //  if (SPIFFS.format()) Serial.println(" SPIFFS is Formatted");
   // Wire.begin(D2, D1, I2C_MASTER);
 
   delay(100);
@@ -123,7 +160,7 @@ void setup() {
   //-----------initiate OLED display-------------
   setOled();
   //---------------------------------------------
-  
+
 
   read_wifi_config();
   delay(2000);
@@ -141,7 +178,7 @@ void setup() {
   server.on("/format", SPIFFS_format);
   server.on("/generate_204", load_page);
   server.onNotFound(load_page);
-  httpUpdater.setup(&server);
+  // httpUpdater.setup(&server);
   server.begin();
 
   dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
@@ -156,16 +193,121 @@ void setup() {
   display.println("SPIFFS v :" + spiffs_Version);
 
   display.display();
-  delay(5000);
+  // delay(5000);
 
   setFinger();
+
+  setESPNOW();
 
   if (WiFi.isConnected()) {
     offline_attendance();
   }
+
+  Serial.println("test now : " + arr_to_str(broadcastAddress1));
+  //   {0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0x57};
+  // uint8_t broadcastAddress2[] = {0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74};
+  // uint8_t broadcastAddress3[] = {0x84, 0xF3, 0xEB, 0xB4, 0x70, 0x05};
+
+  finger_closet[1] = arr_to_str(broadcastAddress1);
+  finger_closet[2] = arr_to_str(broadcastAddress2);
+  finger_closet[3] = arr_to_str(broadcastAddress3);
+  finger_closet[4] = arr_to_str(broadcastAddress4);
+  // finger_closet[5] = "84:F3:EB:B4:57:74";
+  // finger_closet[6] = "84:F3:EB:B4:57:74";
 }
 
-void setRealTimer(){
+String arr_to_str(uint8_t broadcastAddress[]) {
+  String addressStr = "";
+  for (int i = 0; i < 6; i++) {
+    if (broadcastAddress[i] < 0x10) {
+      addressStr += "0";  // Add leading zero for single hex digits
+    }
+    addressStr += String(broadcastAddress[i], HEX);  // Convert to hex and concatenate
+    if (i != 5) {
+      addressStr += ":";
+    }
+  }
+  return addressStr;
+}
+
+void setESPNOW() {
+  Serial.println("setting espnow");
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  esp_now_register_send_cb(OnDataSent);
+
+  // register peer
+  peerInfo.channel = 6;
+  peerInfo.encrypt = false;
+  // register first peer
+  memcpy(peerInfo.peer_addr, broadcastAddress1, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer 1");
+    // return;
+  }
+  memcpy(peerInfo.peer_addr, broadcastAddress2, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer 2");
+    // return;
+  }
+  memcpy(peerInfo.peer_addr, broadcastAddress3, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer 3");
+    // return;
+  }
+  // memcpy(peerInfo.peer_addr, broadcastAddress4, 6);
+  // if (esp_now_add_peer(&peerInfo) != ESP_OK){
+  //   Serial.println("Failed to add peer 4");
+  //   // return;
+  // }
+  // memcpy(peerInfo.peer_addr, broadcastAddress5, 6);
+  // if (esp_now_add_peer(&peerInfo) != ESP_OK){
+  //   Serial.println("Failed to add peer 5");
+  //   // return;
+  // }
+  // memcpy(peerInfo.peer_addr, broadcastAddress6, 6);
+  // if (esp_now_add_peer(&peerInfo) != ESP_OK){
+  //   Serial.println("Failed to add peer 6");
+  //   // return;
+  // }
+
+  int wifiChannel = WiFi.channel();
+  Serial.print("Wi-Fi Channel: ");
+  Serial.println(wifiChannel);
+}
+
+void stringToMACArray(const String &macStr, uint8_t mac[6]) {
+  int values[6];
+
+  // Parse the string using sscanf
+  if (sscanf(macStr.c_str(), "%x:%x:%x:%x:%x:%x",
+             &values[0], &values[1], &values[2],
+             &values[3], &values[4], &values[5])
+      == 6) {
+    // Convert the parsed values into the uint8_t array
+    for (int i = 0; i < 6; ++i) {
+      mac[i] = (uint8_t)values[i];
+    }
+  }
+}
+
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  char macStr[18];
+  Serial.print("Packet to: ");
+  // Copies the sender mac address to a string
+  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  Serial.print(macStr);
+  Serial.print(" send status:\t");
+  // ackOpenDoor(global_fingerID, status == ESP_NOW_SEND_SUCCESS, "");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  displayScreen(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+
+void setRealTimer() {
   timeClient.begin();
   // Set offset time in seconds to adjust for your timezone, for example:
   // GMT +1 = 3600
@@ -306,7 +448,9 @@ void displayConnected() {
 }
 
 void setFinger() {
+  Serial.println("setFinger func");
   finger.begin(57600);
+  Serial.println("setFinger func2");
   mySerial.begin(57600, SERIAL_8N1, 17, 16);
   Serial.println(("\n\nAdafruit finger detect test"));
 
@@ -320,7 +464,7 @@ void setFinger() {
     display.clearDisplay();
     display.drawBitmap(32, 0, FinPr_failed_bits, FinPr_failed_width, FinPr_failed_height, WHITE);
     display.display();
-    while (1) { delay(1); }
+    // while (1) { delay(1); }
   }
   //---------------------------------------------
   finger.getTemplateCount();
@@ -328,23 +472,18 @@ void setFinger() {
   Serial.println(("Waiting for valid finger..."));
 }
 
-//*****************************Web Server Functions**********************
-void Handle_Root() {
-
-  server.send(200, "text/plain", "you are connected to fingerprint project webserver");
-}
-
 //************************************************************************
 void loop() {
-  while(!timeClient.update()) {
+  while (!timeClient.update()) {
     timeClient.forceUpdate();
   }
   timer.run();  //Keep the timer in the loop function in order to update the time as soon as possible
   dnsServer.processNextRequest();
-  server.handleClient();
+  // server.handleClient();
   // ftpSrv.handleFTP();
   //check if there's a connection to Wi-Fi or not
   if (!WiFi.isConnected()) {
+    Serial.println("wifi disconnected");
     if (millis() - previousMillis >= 800000) {
       previousMillis = millis();
       // connectToWiFi();    //Retry to connect to Wi-Fi
@@ -360,6 +499,19 @@ void loop() {
   delay(100);
 
   check_enrol();
+
+  // int mData = 46;
+  // esp_err_t result = esp_now_send(0, (uint8_t *) &mData, sizeof(mData));
+
+  // if (result == ESP_OK) {
+  //   Serial.println("Sent with success");
+  //   displayScreen("Sent with success");
+  // }
+  // else {
+  //   Serial.println("Error sending the data");
+  //   displayScreen("Error sending the data");
+  // }
+  // delay(8000);
 }
 
 
@@ -370,13 +522,14 @@ void offline_attendance() {
     return;
   }
   while (myFile.available()) {
+    Serial.println("attendanee reading");
     String finger_id = myFile.readStringUntil('\n');
     // Serial.println("finger_id is: " + finger_id);
     String time = myFile.readStringUntil('\n');
     // Serial.println("time is: " + time);
     displayScreen("finger_id is: " + finger_id + "\n time is: " + time);
     time.remove(time.length() - 1);
-    SendFingerprintIDV2(finger_id.toInt(), time);
+    ackOpenDoor(finger_id.toInt(), false, time);
     delay(2000);
   }
   myFile.close();
@@ -386,9 +539,9 @@ void offline_attendance() {
 
 
 //************************************************************************
-void SPIFFS_format() {
-  if (!server.authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
-    return server.requestAuthentication();
+void SPIFFS_format(AsyncWebServerRequest *request) {
+  if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
+    return request->requestAuthentication();
   display.clearDisplay();
   // display.setFont(ArialMT_Plain_10);
   display.print("Formating SPIFFS\n Please Wait....");
@@ -398,14 +551,14 @@ void SPIFFS_format() {
     display.clearDisplay();
     display.print("Formating SPIFF Finished");
     display.display();
-    server.send(200, "text/plain", "SPIFFS Formated!!");
+    request->send(200, "text/plain", "SPIFFS Formated!!");
     // delay(2000);
   }
 }
 
-void scan_wifi() {
-  if (!server.authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
-    return server.requestAuthentication();
+void scan_wifi(AsyncWebServerRequest *request) {
+  if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
+    return request->requestAuthentication();
   display.clearDisplay();
   //  display.setFont(ArialMT_Plain_10);
   display.print("Scanning WiFi Stations");
@@ -452,7 +605,7 @@ void scan_wifi() {
     String stationObj = "";
     serializeJson(jsonBuffer, stationObj);
 
-    server.send(200, "text/plain", stationObj);
+    request->send(200, "text/plain", stationObj);
   }
 }
 
@@ -552,7 +705,7 @@ void Run_Station() {
 void show_IPs() {
 
   String MAC = WiFi.macAddress();
-  device_token = "84:F3:EB:B4:73:90";
+  device_token = MAC;
   // device_token = MAC;
   String IPs = WiFi.localIP().toString();
   String GATEWAYs = WiFi.gatewayIP().toString();
@@ -616,14 +769,14 @@ void String_to_IP(String str, IPAddress &IP_addr) {
   IP_addr[3] = str.substring(c3 + 1, ln).toInt();
 }
 
-void load_page() {
+void load_page(AsyncWebServerRequest *request) {
   Serial.println("page is being loaad ...");
-  loadFromSPIFFS(server.uri());
-  String url = server.uri();
+  loadFromSPIFFS(request->url(), request);
+  String url = request->url();
   Serial.println(url);
 }
 
-void loadFromSPIFFS(String path) {
+void loadFromSPIFFS(String path, AsyncWebServerRequest *request) {
   String dataType = "text/plain";
   if (path.endsWith("/")) path += "index.htm";
   if (path.endsWith(".src")) path = path.substring(0, path.lastIndexOf("."));
@@ -638,22 +791,38 @@ void loadFromSPIFFS(String path) {
   else if (path.endsWith(".pdf")) dataType = "application/pdf";
   else if (path.endsWith(".zip")) dataType = "application/zip";
 
+  if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
+    return request->requestAuthentication();
+
+  Serial.println("here1");
   File dataFile = SPIFFS.open(path, "r");
-  if (!server.authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
-    return server.requestAuthentication();
-  server.streamFile(dataFile, dataType);
-  dataFile.close();
+  Serial.println("here2");
+  if (dataFile) {
+    AsyncWebServerResponse *response = request->beginResponse(SPIFFS, path, String());
+    Serial.println("here3");
+    
+    request->send(response);
+    Serial.println("here4");
+    dataFile.close();
+    Serial.println("page is loaded !");
+  } else {
+    request->send(404, "text/plain", "File Not Found");  // Send 404 if file not found
+    Serial.println("File not found: " + path);
+  }
+
+  // server.streamFile(dataFile, dataType);
+  // dataFile.close();
   Serial.println("page is loaded !");
 }
 
 ////////////////////////////////////////////wifi conf from Web route
-void wifi_config() {
+void wifi_config(AsyncWebServerRequest *request) {
 
-  wifi_Mode = server.arg("Wifimode");
-  String SSID_str = server.arg("SSID");
-  String preshared_str = server.arg("presharedkey");
-  String APname_str = server.arg("APname");
-  String APsharedkey_str = server.arg("APsharedkey");
+  wifi_Mode = request->arg("Wifimode");
+  String SSID_str = request->arg("SSID");
+  String preshared_str = request->arg("presharedkey");
+  String APname_str = request->arg("APname");
+  String APsharedkey_str = request->arg("APsharedkey");
   DynamicJsonDocument jsonBuffer(256);
   jsonBuffer["wifimode"] = wifi_Mode;
   jsonBuffer["SSID"] = SSID_str;
@@ -671,7 +840,7 @@ void wifi_config() {
   read_SPIFFS("/WIFI.TXT");
 
   myFile.close();
-  server.send(200, "text/plain", "WiFi settings Saved");
+  request->send(200, "text/plain", "WiFi settings Saved");
 }
 
 void read_SPIFFS(String fn) {
@@ -685,14 +854,14 @@ void read_SPIFFS(String fn) {
 }
 
 /////////////////////////////////network config web from route
-void network_config() {
-  if (!server.authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
-    return server.requestAuthentication();
-  DHCP = server.arg("DHCP");
-  IP_str = server.arg("IP");
-  SUBNET_str = server.arg("SUBNET");
-  GATEWAY_str = server.arg("GATEWAY");
-  DNS_str = server.arg("DNS");
+void network_config(AsyncWebServerRequest *request) {
+  if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
+    return request->requestAuthentication();
+  DHCP = request->arg("DHCP");
+  IP_str = request->arg("IP");
+  SUBNET_str = request->arg("SUBNET");
+  GATEWAY_str = request->arg("GATEWAY");
+  DNS_str = request->arg("DNS");
   DynamicJsonDocument jsonBuffer(256);
   jsonBuffer["DHCP"] = DHCP;
   jsonBuffer["IP"] = IP_str;
@@ -708,15 +877,15 @@ void network_config() {
   serializeJson(jsonBuffer, myFile);
 
   myFile.close();
-  server.send(200, "text/plain", "Network settings Saved");
+  request->send(200, "text/plain", "Network settings Saved");
 }
 
 ///////////////////////auth config from web route
-void auth_config() {
-  if (!server.authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
-    return server.requestAuthentication();
-  USER_str = server.arg("USER");
-  PASSWORD_str = server.arg("PASSWORD");
+void auth_config(AsyncWebServerRequest *request) {
+  if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
+    return request->requestAuthentication();
+  USER_str = request->arg("USER");
+  PASSWORD_str = request->arg("PASSWORD");
   DynamicJsonDocument jsonBuffer(256);
   jsonBuffer["USER"] = USER_str;
   jsonBuffer["PASSWORD"] = PASSWORD_str;
@@ -728,12 +897,12 @@ void auth_config() {
   serializeJson(jsonBuffer, myFile);
 
   myFile.close();
-  server.send(200, "text/plain", "New User and Password Saved ");
+  request->send(200, "text/plain", "New User and Password Saved ");
 }
 
 /////////////////////////////comand from web route
-void Command() {
-  if (server.arg("ESP") == "default") {  ////////deafault factory command/////
+void Command(AsyncWebServerRequest *request) {
+  if (request->arg("ESP") == "default") {  ////////deafault factory command/////
 
     /////////////////////default WIFI config//////////
     DynamicJsonDocument jsonBuffer1(256);
@@ -779,13 +948,13 @@ void Command() {
     }
     serializeJson(jsonBuffer3, myFile);
     myFile.close();
-    server.send(200, "text/plain", "All Settings changed to Default and esp rebooted in AP mode .for setup please connect to ESP8266 AP and AP shared key is : 12345678");
+    request->send(200, "text/plain", "All Settings changed to Default and esp rebooted in AP mode .for setup please connect to ESP8266 AP and AP shared key is : 12345678");
     ////////////////////////////////////////////
     delay(3000);
     ESP.restart();
   }
-  if (server.arg("ESP") == "reboot") {  //////reboot comand////////
-    server.send(200, "text/plain", "ESP Rebooted");
+  if (request->arg("ESP") == "reboot") {  //////reboot comand////////
+    request->send(200, "text/plain", "ESP Rebooted");
     delay(3000);
     ESP.restart();
   }
@@ -837,17 +1006,17 @@ void check_enrol() {
       }
     }
     if (command == "s") {
-      Serial.println("Enter the ID to send:");
+      // myMessage.id = 10;
+      // esp_err_t result = esp_now_send(broadcastAddress1, (uint8_t *) &myMessage, sizeof(myMessage));
 
-      int id = readnumber();
-      // Serial.print("id is: ");
-      // Serial.println(id);
-      if (id > 0) {
-        // downloadAndSendFingerprintTemplate(id);
-        // SendFingerprintIDV2(id, time_format());
-      } else {
-        Serial.println("Invalid ID. Please enter a positive integer.");
-      }
+      // if (result == ESP_OK) {
+      //   Serial.println("Sent with success");
+      // }
+      // else {
+      //   Serial.println("Error sending the data");
+      // }
+
+      CheckFingerprint2("");
     }
     if (command == "r") {
       // Serial.println("Enter the ID to send:");
@@ -971,7 +1140,7 @@ void remove_file() {
   }
 }
 
-String time_format(){
+String time_format() {
   String time = timeClient.getFormattedDate();
 
   return time;
@@ -990,30 +1159,28 @@ void CheckFingerprint(String send_time) {
   if (FingerID > 0) {
     // SendFingerprintIDV2(FingerID, send_time);  // Send the Fingerprint ID to the website.
 
-    String IP_pk = GetDoorIP(FingerID);
+    // String macStr = GetDoorIP(FingerID);
 
-    int newlineIndex = IP_pk.indexOf(" ");
-    String IP = IP_pk.substring(0, newlineIndex);
-    String pk = IP_pk.substring(newlineIndex + 1);
-    
-    Serial.println("IP is : " + IP);
-    String url = "http://" + IP + "/unlock";
-    Serial.println("url is : " + url);
-    // String IP = "";
-    // if(FingerID == 56){
-    //   Serial.println("ip is set");
-    //   IP = "http://192.168.2.130/unlock";
-    //   IP = "http://192.168.4.3/unlock";
-    // }else if(FingerID == 57){
-    //   // IP = "http://192.168.2.202/unlock";
-    //   IP = "http://192.168.4.4/unlock";
-    // }else if(FingerID == 58){
-    //   IP = "http://192.168.2.202/unlock";
-    // }
-    SendFingerSlave(url, pk);
+    SendFingerSlave(FingerID);
 
     // delay(2000);
-    // digitalWrite(RELAY, HIGH);
+  }
+}
+
+void CheckFingerprint2(String send_time) {
+  //  unsigned long previousMillisM = millis();
+  //  Serial.println(previousMillisM);
+  // If there no fingerprint has been scanned return -1 or -2 if there an error or 0 if there nothing, The ID start form 1 to 162
+  // Get the Fingerprint ID from the Scanner
+  FingerID = 56;
+  DisplayFingerprintID();
+
+  if (FingerID > 0) {
+    //    String macStr = GetDoorIP(FingerID);
+
+    SendFingerSlave(FingerID);
+
+    // delay(2000);
   }
 
   //  Serial.println(millis() - previousMillisM);
@@ -1027,7 +1194,7 @@ bool DisplayFingerprintID() {
     display.drawBitmap(34, 0, FinPr_valid_bits, FinPr_valid_width, FinPr_valid_height, WHITE);
     display.display();
     // SendEnrollFingerprint( FingerID );
-    delay(2000);
+    delay(200);
     dataSended = true;
     return true;
   }
@@ -1055,15 +1222,57 @@ bool DisplayFingerprintID() {
   return false;
 }
 
-String GetDoorIP(int finger_id) {
-  // String door_ip;
+// String GetDoorIP(int finger_id) {
+//   // String door_ip;
 
+//   String macStr = finger_closet[finger_id];
+//   Serial.println("mac is local: " + macStr);
+
+//   display.clearDisplay();
+//   display.setTextSize(1);    // Normal 2:2 pixel scale
+//   display.setCursor(15, 0);  // Start at top-left corner
+//   display.print(("Welcome"));
+//   display.setCursor(0, 10);
+//   display.print("door_mac = ");
+//   display.print(macStr);
+
+//   display.display();
+
+//   return macStr;
+// }
+
+void SendFingerSlave(int finger_id) {
+  global_fingerID = finger_id;
+  String macStr = finger_closet[finger_id];
+  Serial.println("mac finger: " + macStr);
+
+  uint8_t mac[6];
+  stringToMACArray(macStr, mac);
+
+  myMessage.id = 11;
+  esp_err_t result = esp_now_send(mac, (uint8_t *)&myMessage, sizeof(myMessage));
+
+  if (result == ESP_OK) {
+    Serial.println("Sent with success");
+    ackOpenDoor(finger_id, true, "");
+  } else {
+    Serial.println("Error sending the data");
+    displayScreen("Error sending the data");
+    ackOpenDoor(finger_id, false, "");
+  }
+  delay(2000);
+}
+
+void ackOpenDoor(int finger_id, bool ack, String send_time) {
   getAccessToken();
   if (WiFi.isConnected() && accessToken != "") {
-    HTTPClient http;
-
-    String url = "http://192.168.2.6/accounts/api/v1/user/fingerdoor/";
-    http.begin(client, url);
+    Serial.println("ackOpenDoor func");
+    Serial.println("finger_id: " + finger_id);
+    Serial.println(ack);
+    HTTPClient http;  //Declare object of class HTTPClient
+    //GET Data
+    String url = URL + "/accounts/api/v1/user/fingerclosetdoor/ack/";
+    http.begin(client, url);  //initiate HTTP request   //Specify content-type header
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Authorization", "Bearer " + accessToken);
 
@@ -1071,86 +1280,23 @@ String GetDoorIP(int finger_id) {
     StaticJsonDocument<200> doc;
     doc["finger_id"] = finger_id;
     doc["mac_id"] = device_token;
+    doc["ack"] = ack;
+    if (send_time != NULL) {
+      String times = send_time;
+      Serial.println("time sent " + times);
+      doc["action_time"] = times;
+    }
     String requestBody;
     serializeJson(doc, requestBody);
 
     int httpResponseCode = http.POST(requestBody);
-    String response = http.getString();
-    Serial.println("HTTP Response code door: " + String(httpResponseCode));
-    Serial.println("Response door: " + response);
-
     if (httpResponseCode == 200) {
-      StaticJsonDocument<200> responseDoc;
-      DeserializationError error = deserializeJson(responseDoc, response);
-      if (error) {
-        Serial.print(("deserializeJson() failed: "));
-        Serial.println(error.f_str());
-        return "";
-      }
-
-      String door_ip = responseDoc["door_ip"];
-      String device_log_pk = responseDoc["device_log"];
-
-      display.clearDisplay();
-      display.setTextSize(1);    // Normal 2:2 pixel scale
-      display.setCursor(15, 0);  // Start at top-left corner
-      display.print(("Welcome"));
-      display.setCursor(0, 10);
-      display.print("door_ip = " + door_ip);
-      display.display();
-      delay(2000);
-
-      return door_ip + " " + device_log_pk;
-    } else if (httpResponseCode == 404) {
-      Serial.println("finger ip not found");
-    } else {
-      writeAttendanceSpiff(finger_id);
+      Serial.println("ack sent to server");
     }
+    // Serial.println("HTTP Response code: " + String(httpResponseCode));
+
   } else if (!WiFi.isConnected()) {
     writeAttendanceSpiff(finger_id);
-  }
-
-  return "";
-}
-
-void SendFingerSlave(String url, String pk) {
-  if (WiFi.isConnected()) {
-    Serial.println("url is " + url);
-    HTTPClient http;
-    http.begin(client, url);
-
-    int httpResponseCode = http.GET();
-    Serial.println("resp code: " + httpResponseCode);
-    if (httpResponseCode == 200) {
-      Serial.println("send to slave success");
-      ackOpenDoor(pk);
-    }
-    http.end();
-  }
-}
-
-void ackOpenDoor(String device_log_pk){
-  getAccessToken();
-  if(WiFi.isConnected() && accessToken != ""){
-    HTTPClient http;    //Declare object of class HTTPClient
-    //GET Data
-    String url = "http://192.168.2.6/accounts/api/v1/user/fingerdoor/ack/";
-    http.begin(client, url); //initiate HTTP request   //Specify content-type header
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("Authorization", "Bearer " + accessToken);
-    
-    // JSON data
-    StaticJsonDocument<200> doc;
-    doc["device_log_pk"] = device_log_pk; 
-    String requestBody;
-    serializeJson(doc, requestBody);
-
-    http.POST(requestBody);
-    // Serial.println("HTTP Response code: " + String(httpResponseCode));
-    
-  }
-  else if(!WiFi.isConnected()){
-    // writeAttendanceSpiff(finger_id);
   }
 }
 
@@ -1161,7 +1307,7 @@ void SendFingerprintIDV2(int finger_id, String send_time) {
     Serial.println(finger_id);
     HTTPClient http;
 
-    String url = "http://192.168.2.6/accounts/api/v1/user/fingerlog/";
+    String url = URL + "/accounts/api/v1/user/fingerlog/";
     http.begin(client, url);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Authorization", "Bearer " + accessToken);
@@ -1249,13 +1395,13 @@ void getAccessToken() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("getAccessToken func");
     HTTPClient http;
-    http.begin(client, "http://192.168.2.6/accounts/api/v1/jwt/create/");
+    http.begin(client, URL + "/accounts/api/v1/jwt/create/");
     http.addHeader("Content-Type", "application/json");
 
     // JSON data
     StaticJsonDocument<200> doc;
-    doc["username"] = "reza@gmail.com";
-    doc["password"] = "1234567R";
+    doc["username"] = "IOT@gmail.com";
+    doc["password"] = "12345678IOT";
     String requestBody;
     serializeJson(doc, requestBody);
 
@@ -1286,35 +1432,34 @@ void getAccessToken() {
 }
 
 //************TEST send the fingerprint to the website*************
-void checkEnroll() {
+void checkEnroll(AsyncWebServerRequest *request) {
   Serial.println("enrolling ");
   // String employee_code = server.arg("employee_code");
   // String mac_id = server.arg("mac_id");
   // String first_name = server.arg("first_name");
   // String last_name = server.arg("last_name");
-  String finger_id = server.arg("finger_id");
-  String pk = server.arg("pk");
-  String user_pk = server.arg("user_pk");
+  String finger_id = request->arg("finger_id");
+  // String pk = server.arg("pk");
+  String user_pk = request->arg("user_pk");
   global_id = finger_id.toInt();
-  server.send(200, "text/plain", "enrolled");
+  request->send(200, "text/plain", "enrolled");
 
   uint8_t p = getFingerprintEnroll();
   // Serial.println("res p is " + p);
   // displayScreen("p is " + p);
   if (p != FINGERPRINT_OK) return;
 
-  ackEnroll(pk, user_pk);
+  ackEnroll(user_pk);
   Serial.println("sent ackk");
-  // server.send(200,"text/plain","enrolled");
 }
 
-void ackEnroll(String pk, String user_pk) {
+void ackEnroll(String user_pk) {
   getAccessToken();
   if (WiFi.isConnected() && accessToken != "") {
     HTTPClient http;  //Declare object of class HTTPClient
     //GET Data
     //GET methode
-    String url = "http://192.168.2.6/accounts/api/v1/user/doorinsert/ack/";
+    String url = URL + "/accounts/api/v1/user/doorinsert/ack/";
     http.begin(client, url);  //initiate HTTP request   //Specify content-type header
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Authorization", "Bearer " + accessToken);
@@ -1322,11 +1467,12 @@ void ackEnroll(String pk, String user_pk) {
     // JSON data
     StaticJsonDocument<200> doc;
     // doc["employee_code"] = employee_code;
-    // doc["mac_id"] = mac_id;
+    doc["mac_id"] = device_token;
+    doc["door_id"] = global_id;
     // doc["first_name"] = first_name;
     // doc["last_name"] = last_name;
     doc["finger_data"] = "";
-    doc["pk"] = pk;
+    // doc["pk"] = pk;
     doc["user_pk"] = user_pk;
     String requestBody;
     serializeJson(doc, requestBody);
@@ -1339,15 +1485,15 @@ void ackEnroll(String pk, String user_pk) {
   }
 }
 
-void checkDelete() {
-  String id = server.arg("emp_id");
+void checkDelete(AsyncWebServerRequest *request) {
+  String id = request->arg("emp_id");
   int id_received = id.toInt();
   Serial.println("id_received " + id_received);
 
   int p = deleteFingerprint(id_received);
   Serial.println("res " + p);
 
-  server.send(200, "text/plain", "deleted");
+  request->send(200, "text/plain", "deleted");
 }
 
 //********************Get the Fingerprint ID******************
@@ -1483,7 +1629,9 @@ uint8_t getFingerprintEnroll() {
     Serial.println("global_id is 0");
     return -1;
   }
-  while (p != FINGERPRINT_OK) {
+
+  unsigned long new_millis = millis();
+  while (p != FINGERPRINT_OK && (millis() - new_millis) < 30000) {
 
     p = finger.getImage();
     switch (p) {
@@ -1545,9 +1693,7 @@ uint8_t getFingerprintEnroll() {
   display.setTextSize(2);       // Normal 2:2 pixel scale
   display.setTextColor(WHITE);  // Draw white text
   display.setCursor(0, 0);      // Start at top-left corner
-  display.print(("put"));
-  display.setCursor(0, 20);
-  display.print(("other finger"));
+  display.print(("Again"));
   display.display();
   //Serial.println("Remove finger");
   delay(2000);
@@ -1561,7 +1707,8 @@ uint8_t getFingerprintEnroll() {
   display.clearDisplay();
   display.drawBitmap(34, 0, FinPr_scan_bits, FinPr_scan_width, FinPr_scan_height, WHITE);
   display.display();
-  while (p != FINGERPRINT_OK) {
+  new_millis = millis();
+  while (p != FINGERPRINT_OK && (millis() - new_millis) <= 30000) {
 
     p = finger.getImage();
     switch (p) {
@@ -1650,10 +1797,9 @@ uint8_t getFingerprintEnroll() {
   p = finger.storeModel(global_id);
   if (p == FINGERPRINT_OK) {
     Serial.println("Stored!");
-    display.clearDisplay();
-    // display.drawBitmap( 34, 0, FinPr_valid_bits, FinPr_valid_width, FinPr_valid_height, WHITE);
-    display.print(("registered"));
-    display.display();
+    // display.clearDisplay();
+    // display.print(("registered"));
+    // display.display();
     delay(2000);
     // confirmAdding(id);
     return p;
@@ -1672,7 +1818,7 @@ uint8_t getFingerprintEnroll() {
   }
 }
 //******************Check if there a Fingerprint ID to add******************
-void writeMonitor() {
+void writeMonitor(AsyncWebServerRequest *request) {
   myFile = SPIFFS.open(attendance_filename, "a");
   myFile.println(1);
   String timeNow = time_format();
@@ -1682,9 +1828,11 @@ void writeMonitor() {
   myFile.println(timeNow);
 
   myFile.close();
+
+  request->send(200, "text/plain", "writeMonitor");
 }
 
-void readMonitor() {
+void readMonitor(AsyncWebServerRequest *request) {
   myFile = SPIFFS.open(attendance_filename, "r");
   if (!myFile) Serial.println("file open failed");
   int str[20];
@@ -1712,4 +1860,6 @@ void readMonitor() {
   }
   myFile.close();
   remove_file();
+
+  request->send(200, "text/plain", "readMonitor");
 }
