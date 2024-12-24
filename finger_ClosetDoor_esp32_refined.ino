@@ -1,16 +1,15 @@
 
 //NodeMCU--------------------------
 #include <WiFiClient.h>
-  #include <WiFi.h>
+#include <WiFi.h>
 #include <WebServer.h>
 #include <mDNS.h>
 #include <HTTPClient.h>
-#include <NetworkClient.h>
+//#include <NetworkClient.h>
 #include <HTTPUpdateServer.h>
 #include <SimpleTimer.h>  //https://github.com/jfturcot/SimpleTimer
-// #include <Base64.h>
 #include <DNSServer.h>
-
+  
 #include <FS.h>
 //OLED-----------------------------
 #include <SPI.h>
@@ -23,8 +22,10 @@
 #include <TimeLib.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <esp_now.h>
 
 #include <ArduinoJson.h>
+#include <map>
 //************************************************************************
 //Fingerprint scanner Pins
 #define Finger_Rx 14  //D5
@@ -78,9 +79,10 @@ IPAddress DNS;
 IPAddress apIP(192, 168, 4, 1);
 IPAddress netMsk(255, 255, 255, 0);
 
-WebServer server(60);
+WebServer server(80);
 HTTPUpdateServer httpUpdater;
 
+String URL = "http://192.168.3.13";
 
 //************************************************************************
 String getData, Link;
@@ -93,6 +95,7 @@ unsigned long previousMillis = 0;
 
 bool dataSended = false;
 int global_id = 0;
+int global_fingerID;
 String accessToken;
 String refreshToken;
 
@@ -111,11 +114,33 @@ unsigned long lastSend;
 const int16_t I2C_MASTER = 0x42;
 const int16_t I2C_SLAVE = 0x08;
 
+uint8_t broadcastAddress1[] = {0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0xC3};
+// uint8_t broadcastAddress1[] = {0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0x57};
+uint8_t broadcastAddress2[] = {0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74};
+uint8_t broadcastAddress3[] = {0x84, 0xF3, 0xEB, 0xB4, 0x70, 0x05};
+ uint8_t broadcastAddress4[] = {0x84, 0xF3, 0xEB, 0xB4, 0x72, 0x09};
+// uint8_t broadcastAddress5[] = {0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74};
+// uint8_t broadcastAddress6[] = {0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74};
+uint8_t broadcastAddress[6];
+// 84:F3:EB:B4:70:05
+
+std::map<int, String> finger_closet;
+
+esp_now_peer_info_t peerInfo;
+
+typedef struct message {
+  int id;
+} message;
+message myMessage;
+
+
 //************************************************************************
 void setup() {
+  
   WiFi.disconnect();
   Serial.begin(115200);
   SPIFFS.begin();
+//  if (SPIFFS.format()) Serial.println(" SPIFFS is Formatted");
   // Wire.begin(D2, D1, I2C_MASTER);
 
   delay(100);
@@ -137,7 +162,7 @@ void setup() {
   server.on("/networkconfig", network_config);
   server.on("/authconfig", auth_config);
   server.on("/command", Command);
-  server.on("/scan", scan_wifi);
+  server.on("/scan", scan_wifi);  
   server.on("/format", SPIFFS_format);
   server.on("/generate_204", load_page);
   server.onNotFound(load_page);
@@ -156,13 +181,119 @@ void setup() {
   display.println("SPIFFS v :" + spiffs_Version);
 
   display.display();
-  delay(5000);
+  // delay(5000);
 
   setFinger();
+
+  setESPNOW();
 
   if (WiFi.isConnected()) {
     offline_attendance();
   }
+
+  Serial.println("test now : "+arr_to_str(broadcastAddress1));
+//   {0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0x57};
+// uint8_t broadcastAddress2[] = {0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74};
+// uint8_t broadcastAddress3[] = {0x84, 0xF3, 0xEB, 0xB4, 0x70, 0x05};
+
+  finger_closet[1] = arr_to_str(broadcastAddress1);
+  finger_closet[2] = arr_to_str(broadcastAddress2);
+  finger_closet[3] = arr_to_str(broadcastAddress3);
+   finger_closet[4] = arr_to_str(broadcastAddress4);
+  // finger_closet[5] = "84:F3:EB:B4:57:74";
+  // finger_closet[6] = "84:F3:EB:B4:57:74";
+  
+}
+
+String arr_to_str(uint8_t broadcastAddress[]){
+  String addressStr = "";
+  for (int i = 0; i < 6; i++) {
+    if (broadcastAddress[i] < 0x10) {
+      addressStr += "0";  // Add leading zero for single hex digits
+    }
+    addressStr += String(broadcastAddress[i], HEX);  // Convert to hex and concatenate
+    if(i != 5){
+      addressStr += ":";
+    }
+  }
+  return addressStr;
+}
+
+void setESPNOW(){
+  Serial.println("setting espnow");
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  
+  esp_now_register_send_cb(OnDataSent);
+   
+  // register peer
+  peerInfo.channel = 6;  
+  peerInfo.encrypt = false;
+  // register first peer  
+  memcpy(peerInfo.peer_addr, broadcastAddress1, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer 1");
+    // return;
+  }
+  memcpy(peerInfo.peer_addr, broadcastAddress2, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer 2");
+    // return;
+  }
+  memcpy(peerInfo.peer_addr, broadcastAddress3, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer 3");
+    // return;
+  }
+  // memcpy(peerInfo.peer_addr, broadcastAddress4, 6);
+  // if (esp_now_add_peer(&peerInfo) != ESP_OK){
+  //   Serial.println("Failed to add peer 4");
+  //   // return;
+  // }
+  // memcpy(peerInfo.peer_addr, broadcastAddress5, 6);
+  // if (esp_now_add_peer(&peerInfo) != ESP_OK){
+  //   Serial.println("Failed to add peer 5");
+  //   // return;
+  // }
+  // memcpy(peerInfo.peer_addr, broadcastAddress6, 6);
+  // if (esp_now_add_peer(&peerInfo) != ESP_OK){
+  //   Serial.println("Failed to add peer 6");
+  //   // return;
+  // }
+  
+  int wifiChannel = WiFi.channel();
+  Serial.print("Wi-Fi Channel: ");
+  Serial.println(wifiChannel);
+}
+
+void stringToMACArray(const String &macStr, uint8_t mac[6]) {
+  int values[6];
+  
+  // Parse the string using sscanf
+  if (sscanf(macStr.c_str(), "%x:%x:%x:%x:%x:%x", 
+             &values[0], &values[1], &values[2], 
+             &values[3], &values[4], &values[5]) == 6) {
+    // Convert the parsed values into the uint8_t array
+    for (int i = 0; i < 6; ++i) {
+      mac[i] = (uint8_t)values[i];
+    }
+  }
+}
+
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  char macStr[18];
+  Serial.print("Packet to: ");
+  // Copies the sender mac address to a string
+  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  Serial.print(macStr);
+  Serial.print(" send status:\t");
+  // ackOpenDoor(global_fingerID, status == ESP_NOW_SEND_SUCCESS, "");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  displayScreen(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+
 }
 
 void setRealTimer(){
@@ -306,7 +437,9 @@ void displayConnected() {
 }
 
 void setFinger() {
+  Serial.println("setFinger func");
   finger.begin(57600);
+  Serial.println("setFinger func2");
   mySerial.begin(57600, SERIAL_8N1, 17, 16);
   Serial.println(("\n\nAdafruit finger detect test"));
 
@@ -320,7 +453,7 @@ void setFinger() {
     display.clearDisplay();
     display.drawBitmap(32, 0, FinPr_failed_bits, FinPr_failed_width, FinPr_failed_height, WHITE);
     display.display();
-    while (1) { delay(1); }
+    // while (1) { delay(1); }
   }
   //---------------------------------------------
   finger.getTemplateCount();
@@ -345,6 +478,7 @@ void loop() {
   // ftpSrv.handleFTP();
   //check if there's a connection to Wi-Fi or not
   if (!WiFi.isConnected()) {
+    Serial.println("wifi disconnected");
     if (millis() - previousMillis >= 800000) {
       previousMillis = millis();
       // connectToWiFi();    //Retry to connect to Wi-Fi
@@ -360,6 +494,19 @@ void loop() {
   delay(100);
 
   check_enrol();
+
+  // int mData = 46;
+  // esp_err_t result = esp_now_send(0, (uint8_t *) &mData, sizeof(mData));
+
+  // if (result == ESP_OK) {
+  //   Serial.println("Sent with success");
+  //   displayScreen("Sent with success");
+  // }
+  // else {
+  //   Serial.println("Error sending the data");
+  //   displayScreen("Error sending the data");
+  // }
+  // delay(8000);
 }
 
 
@@ -370,13 +517,14 @@ void offline_attendance() {
     return;
   }
   while (myFile.available()) {
+    Serial.println("attendanee reading");
     String finger_id = myFile.readStringUntil('\n');
     // Serial.println("finger_id is: " + finger_id);
     String time = myFile.readStringUntil('\n');
     // Serial.println("time is: " + time);
     displayScreen("finger_id is: " + finger_id + "\n time is: " + time);
     time.remove(time.length() - 1);
-    SendFingerprintIDV2(finger_id.toInt(), time);
+    ackOpenDoor(finger_id.toInt(), false, time);
     delay(2000);
   }
   myFile.close();
@@ -552,7 +700,7 @@ void Run_Station() {
 void show_IPs() {
 
   String MAC = WiFi.macAddress();
-  device_token = "84:F3:EB:B4:73:90";
+  device_token = MAC;
   // device_token = MAC;
   String IPs = WiFi.localIP().toString();
   String GATEWAYs = WiFi.gatewayIP().toString();
@@ -666,7 +814,7 @@ void wifi_config() {
     Serial.println("Failed to open config file ");
     return;
   }
-  serializeJson(jsonBuffer, myFile);
+  serializeJson(jsonBuffer, myFile);  
 
   read_SPIFFS("/WIFI.TXT");
 
@@ -797,8 +945,7 @@ uint8_t readnumber(void) {
   uint8_t num = 0;
 
   while (num == 0) {
-    while (!Serial.available())
-      ;
+    while (!Serial.available());
     num = Serial.parseInt();
   }
   return num;
@@ -837,17 +984,17 @@ void check_enrol() {
       }
     }
     if (command == "s") {
-      Serial.println("Enter the ID to send:");
+      // myMessage.id = 10;
+      // esp_err_t result = esp_now_send(broadcastAddress1, (uint8_t *) &myMessage, sizeof(myMessage));
+    
+      // if (result == ESP_OK) {
+      //   Serial.println("Sent with success");
+      // }
+      // else {
+      //   Serial.println("Error sending the data");
+      // }
 
-      int id = readnumber();
-      // Serial.print("id is: ");
-      // Serial.println(id);
-      if (id > 0) {
-        // downloadAndSendFingerprintTemplate(id);
-        // SendFingerprintIDV2(id, time_format());
-      } else {
-        Serial.println("Invalid ID. Please enter a positive integer.");
-      }
+      CheckFingerprint2("");
     }
     if (command == "r") {
       // Serial.println("Enter the ID to send:");
@@ -990,30 +1137,29 @@ void CheckFingerprint(String send_time) {
   if (FingerID > 0) {
     // SendFingerprintIDV2(FingerID, send_time);  // Send the Fingerprint ID to the website.
 
-    String IP_pk = GetDoorIP(FingerID);
+    // String macStr = GetDoorIP(FingerID);
 
-    int newlineIndex = IP_pk.indexOf(" ");
-    String IP = IP_pk.substring(0, newlineIndex);
-    String pk = IP_pk.substring(newlineIndex + 1);
-    
-    Serial.println("IP is : " + IP);
-    String url = "http://" + IP + "/unlock";
-    Serial.println("url is : " + url);
-    // String IP = "";
-    // if(FingerID == 56){
-    //   Serial.println("ip is set");
-    //   IP = "http://192.168.2.130/unlock";
-    //   IP = "http://192.168.4.3/unlock";
-    // }else if(FingerID == 57){
-    //   // IP = "http://192.168.2.202/unlock";
-    //   IP = "http://192.168.4.4/unlock";
-    // }else if(FingerID == 58){
-    //   IP = "http://192.168.2.202/unlock";
-    // }
-    SendFingerSlave(url, pk);
+    SendFingerSlave(FingerID); 
 
     // delay(2000);
-    // digitalWrite(RELAY, HIGH);
+  }
+
+}
+
+void CheckFingerprint2(String send_time) {
+  //  unsigned long previousMillisM = millis();
+  //  Serial.println(previousMillisM);
+  // If there no fingerprint has been scanned return -1 or -2 if there an error or 0 if there nothing, The ID start form 1 to 162
+  // Get the Fingerprint ID from the Scanner
+  FingerID = 56;
+  DisplayFingerprintID();
+
+  if (FingerID > 0) {
+//    String macStr = GetDoorIP(FingerID);
+
+    SendFingerSlave(FingerID);  
+
+    // delay(2000);
   }
 
   //  Serial.println(millis() - previousMillisM);
@@ -1027,7 +1173,7 @@ bool DisplayFingerprintID() {
     display.drawBitmap(34, 0, FinPr_valid_bits, FinPr_valid_width, FinPr_valid_height, WHITE);
     display.display();
     // SendEnrollFingerprint( FingerID );
-    delay(2000);
+    delay(200);
     dataSended = true;
     return true;
   }
@@ -1055,102 +1201,83 @@ bool DisplayFingerprintID() {
   return false;
 }
 
-String GetDoorIP(int finger_id) {
-  // String door_ip;
+// String GetDoorIP(int finger_id) {
+//   // String door_ip;
 
-  getAccessToken();
-  if (WiFi.isConnected() && accessToken != "") {
-    HTTPClient http;
+//   String macStr = finger_closet[finger_id];
+//   Serial.println("mac is local: " + macStr);
 
-    String url = "http://192.168.2.6/accounts/api/v1/user/fingerdoor/";
-    http.begin(client, url);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("Authorization", "Bearer " + accessToken);
+//   display.clearDisplay();
+//   display.setTextSize(1);    // Normal 2:2 pixel scale
+//   display.setCursor(15, 0);  // Start at top-left corner
+//   display.print(("Welcome"));
+//   display.setCursor(0, 10);
+//   display.print("door_mac = ");
+//   display.print(macStr);
 
-    // JSON data
-    StaticJsonDocument<200> doc;
-    doc["finger_id"] = finger_id;
-    doc["mac_id"] = device_token;
-    String requestBody;
-    serializeJson(doc, requestBody);
+//   display.display();
 
-    int httpResponseCode = http.POST(requestBody);
-    String response = http.getString();
-    Serial.println("HTTP Response code door: " + String(httpResponseCode));
-    Serial.println("Response door: " + response);
+//   return macStr;
+// }
 
-    if (httpResponseCode == 200) {
-      StaticJsonDocument<200> responseDoc;
-      DeserializationError error = deserializeJson(responseDoc, response);
-      if (error) {
-        Serial.print(("deserializeJson() failed: "));
-        Serial.println(error.f_str());
-        return "";
-      }
+void SendFingerSlave(int finger_id) {
+  global_fingerID = finger_id;
+  String macStr = finger_closet[finger_id];
+  Serial.println("mac finger: " + macStr);
 
-      String door_ip = responseDoc["door_ip"];
-      String device_log_pk = responseDoc["device_log"];
+  uint8_t mac[6];
+  stringToMACArray(macStr, mac);
 
-      display.clearDisplay();
-      display.setTextSize(1);    // Normal 2:2 pixel scale
-      display.setCursor(15, 0);  // Start at top-left corner
-      display.print(("Welcome"));
-      display.setCursor(0, 10);
-      display.print("door_ip = " + door_ip);
-      display.display();
-      delay(2000);
+  myMessage.id = 11;
+  esp_err_t result = esp_now_send(mac, (uint8_t *) &myMessage, sizeof(myMessage));
 
-      return door_ip + " " + device_log_pk;
-    } else if (httpResponseCode == 404) {
-      Serial.println("finger ip not found");
-    } else {
-      writeAttendanceSpiff(finger_id);
-    }
-  } else if (!WiFi.isConnected()) {
-    writeAttendanceSpiff(finger_id);
+  if (result == ESP_OK) {
+    Serial.println("Sent with success");
+    ackOpenDoor(finger_id, true, "");
   }
-
-  return "";
+  else {
+    Serial.println("Error sending the data");
+    displayScreen("Error sending the data");
+    ackOpenDoor(finger_id, false, "");
+  }
+  delay(2000);
 }
 
-void SendFingerSlave(String url, String pk) {
-  if (WiFi.isConnected()) {
-    Serial.println("url is " + url);
-    HTTPClient http;
-    http.begin(client, url);
-
-    int httpResponseCode = http.GET();
-    Serial.println("resp code: " + httpResponseCode);
-    if (httpResponseCode == 200) {
-      Serial.println("send to slave success");
-      ackOpenDoor(pk);
-    }
-    http.end();
-  }
-}
-
-void ackOpenDoor(String device_log_pk){
+void ackOpenDoor(int finger_id, bool ack , String send_time){
   getAccessToken();
   if(WiFi.isConnected() && accessToken != ""){
+    Serial.println("ackOpenDoor func");
+    Serial.println("finger_id: "+ finger_id);
+    Serial.println(ack);
     HTTPClient http;    //Declare object of class HTTPClient
     //GET Data
-    String url = "http://192.168.2.6/accounts/api/v1/user/fingerdoor/ack/";
+    String url = URL + "/accounts/api/v1/user/fingerclosetdoor/ack/";
     http.begin(client, url); //initiate HTTP request   //Specify content-type header
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Authorization", "Bearer " + accessToken);
     
     // JSON data
     StaticJsonDocument<200> doc;
-    doc["device_log_pk"] = device_log_pk; 
+    doc["finger_id"] = finger_id;
+    doc["mac_id"] = device_token; 
+    doc["ack"] = ack;
+    if (send_time != NULL) {
+      String times = send_time;
+      Serial.println("time sent " + times);
+      doc["action_time"] = times;
+    }
     String requestBody;
     serializeJson(doc, requestBody);
 
-    http.POST(requestBody);
+    int httpResponseCode = http.POST(requestBody);
+   if (httpResponseCode == 200) {
+     Serial.println("ack sent to server"); 
+   }
     // Serial.println("HTTP Response code: " + String(httpResponseCode));
     
   }
   else if(!WiFi.isConnected()){
-    // writeAttendanceSpiff(finger_id);
+    writeAttendanceSpiff(finger_id);
   }
 }
 
@@ -1161,7 +1288,7 @@ void SendFingerprintIDV2(int finger_id, String send_time) {
     Serial.println(finger_id);
     HTTPClient http;
 
-    String url = "http://192.168.2.6/accounts/api/v1/user/fingerlog/";
+    String url = URL + "/accounts/api/v1/user/fingerlog/";
     http.begin(client, url);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Authorization", "Bearer " + accessToken);
@@ -1249,13 +1376,13 @@ void getAccessToken() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("getAccessToken func");
     HTTPClient http;
-    http.begin(client, "http://192.168.2.6/accounts/api/v1/jwt/create/");
+    http.begin(client, URL + "/accounts/api/v1/jwt/create/");
     http.addHeader("Content-Type", "application/json");
 
     // JSON data
     StaticJsonDocument<200> doc;
-    doc["username"] = "reza@gmail.com";
-    doc["password"] = "1234567R";
+    doc["username"] = "IOT@gmail.com";
+    doc["password"] = "12345678IOT";
     String requestBody;
     serializeJson(doc, requestBody);
 
@@ -1293,7 +1420,7 @@ void checkEnroll() {
   // String first_name = server.arg("first_name");
   // String last_name = server.arg("last_name");
   String finger_id = server.arg("finger_id");
-  String pk = server.arg("pk");
+  // String pk = server.arg("pk");
   String user_pk = server.arg("user_pk");
   global_id = finger_id.toInt();
   server.send(200, "text/plain", "enrolled");
@@ -1303,18 +1430,18 @@ void checkEnroll() {
   // displayScreen("p is " + p);
   if (p != FINGERPRINT_OK) return;
 
-  ackEnroll(pk, user_pk);
+  ackEnroll(user_pk);
   Serial.println("sent ackk");
   // server.send(200,"text/plain","enrolled");
 }
 
-void ackEnroll(String pk, String user_pk) {
+void ackEnroll(String user_pk) {
   getAccessToken();
   if (WiFi.isConnected() && accessToken != "") {
     HTTPClient http;  //Declare object of class HTTPClient
     //GET Data
     //GET methode
-    String url = "http://192.168.2.6/accounts/api/v1/user/doorinsert/ack/";
+    String url = URL + "/accounts/api/v1/user/doorinsert/ack/";
     http.begin(client, url);  //initiate HTTP request   //Specify content-type header
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Authorization", "Bearer " + accessToken);
@@ -1322,11 +1449,12 @@ void ackEnroll(String pk, String user_pk) {
     // JSON data
     StaticJsonDocument<200> doc;
     // doc["employee_code"] = employee_code;
-    // doc["mac_id"] = mac_id;
-    // doc["first_name"] = first_name;
+    doc["mac_id"] = device_token;
+    doc["door_id"] = global_id;
+    // doc["first_name"] = first_name;  
     // doc["last_name"] = last_name;
     doc["finger_data"] = "";
-    doc["pk"] = pk;
+    // doc["pk"] = pk;
     doc["user_pk"] = user_pk;
     String requestBody;
     serializeJson(doc, requestBody);
@@ -1483,7 +1611,9 @@ uint8_t getFingerprintEnroll() {
     Serial.println("global_id is 0");
     return -1;
   }
-  while (p != FINGERPRINT_OK) {
+
+  unsigned long new_millis = millis();
+  while (p != FINGERPRINT_OK && (millis()-new_millis) < 30000) {
 
     p = finger.getImage();
     switch (p) {
@@ -1545,9 +1675,7 @@ uint8_t getFingerprintEnroll() {
   display.setTextSize(2);       // Normal 2:2 pixel scale
   display.setTextColor(WHITE);  // Draw white text
   display.setCursor(0, 0);      // Start at top-left corner
-  display.print(("put"));
-  display.setCursor(0, 20);
-  display.print(("other finger"));
+  display.print(("Again"));
   display.display();
   //Serial.println("Remove finger");
   delay(2000);
@@ -1561,7 +1689,8 @@ uint8_t getFingerprintEnroll() {
   display.clearDisplay();
   display.drawBitmap(34, 0, FinPr_scan_bits, FinPr_scan_width, FinPr_scan_height, WHITE);
   display.display();
-  while (p != FINGERPRINT_OK) {
+  new_millis = millis();
+  while (p != FINGERPRINT_OK && (millis() - new_millis) <= 30000) {
 
     p = finger.getImage();
     switch (p) {
@@ -1650,12 +1779,7 @@ uint8_t getFingerprintEnroll() {
   p = finger.storeModel(global_id);
   if (p == FINGERPRINT_OK) {
     Serial.println("Stored!");
-    display.clearDisplay();
-    // display.drawBitmap( 34, 0, FinPr_valid_bits, FinPr_valid_width, FinPr_valid_height, WHITE);
-    display.print(("registered"));
-    display.display();
     delay(2000);
-    // confirmAdding(id);
     return p;
   } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
     Serial.println("Communication error");
