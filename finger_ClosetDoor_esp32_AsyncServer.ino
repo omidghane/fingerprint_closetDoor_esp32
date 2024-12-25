@@ -7,6 +7,7 @@
 #include <mDNS.h>
 #include <HTTPClient.h>
 
+#include <ElegantOTA.h>
 #include <ESPAsyncWebServer.h>
 // #include <ESPAsyncHTTPUpdateServer.h>
 
@@ -83,13 +84,14 @@ IPAddress SUBNET;
 IPAddress GATEWAY;
 IPAddress DNS;
 /* Soft AP network parameters */
-IPAddress apIP(192, 168, 5, 1);
-IPAddress netMsk(255, 255, 255, 0);
+IPAddress apIP(192, 168, 4, 1);
+IPAddress netMsk(255, 255, 254, 0);
 
-// WebServer server(60);
 // HTTPUpdateServer httpUpdater;
 // ESPAsyncHTTPUpdateServer httpUpdater;
 AsyncWebServer server(80);
+
+unsigned long ota_progress_millis = 0;
 
 String URL = "http://192.168.3.13";
 
@@ -123,6 +125,9 @@ unsigned long lastSend;
 const int16_t I2C_MASTER = 0x42;
 const int16_t I2C_SLAVE = 0x08;
 
+bool check_enroll = false;
+String user_pk_global;
+
 uint8_t broadcastAddress1[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0xC3 };
 // uint8_t broadcastAddress1[] = {0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0x57};
 uint8_t broadcastAddress2[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74 };
@@ -141,6 +146,23 @@ typedef struct message {
   int id;
 } message;
 message myMessage;
+
+const int ledPin = 2;
+String ledState;
+String processor(const String& var){
+  Serial.println(var);
+  if(var == "STATE"){
+    if(digitalRead(ledPin)){
+      ledState = "ON";
+    }
+    else{
+      ledState = "OFF";
+    }
+    Serial.print(ledState);
+    return ledState;
+  }
+  return String();
+}
 
 
 //************************************************************************
@@ -165,7 +187,10 @@ void setup() {
   read_wifi_config();
   delay(2000);
 
-  //  server.on("/", Handle_Root);
+  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/style.css", "text/css");
+  });
+
   server.on("/write", writeMonitor);
   server.on("/read", readMonitor);
   server.on("/enroll", checkEnroll);
@@ -178,7 +203,14 @@ void setup() {
   server.on("/format", SPIFFS_format);
   server.on("/generate_204", load_page);
   server.onNotFound(load_page);
-  // httpUpdater.setup(&server);
+
+  ElegantOTA.setAuth(update_username, update_username);
+  ElegantOTA.begin(&server);    // Start ElegantOTA
+  // ElegantOTA callbacks
+  ElegantOTA.onStart(onOTAStart);
+  ElegantOTA.onProgress(onOTAProgress);
+  ElegantOTA.onEnd(onOTAEnd);
+
   server.begin();
 
   dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
@@ -205,15 +237,46 @@ void setup() {
 
   Serial.println("test now : " + arr_to_str(broadcastAddress1));
   //   {0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0x57};
-  // uint8_t broadcastAddress2[] = {0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74};
-  // uint8_t broadcastAddress3[] = {0x84, 0xF3, 0xEB, 0xB4, 0x70, 0x05};
-
   finger_closet[1] = arr_to_str(broadcastAddress1);
   finger_closet[2] = arr_to_str(broadcastAddress2);
   finger_closet[3] = arr_to_str(broadcastAddress3);
   finger_closet[4] = arr_to_str(broadcastAddress4);
   // finger_closet[5] = "84:F3:EB:B4:57:74";
   // finger_closet[6] = "84:F3:EB:B4:57:74";
+}
+
+void enrolling_process(){
+  uint8_t p = getFingerprintEnroll();
+  if (p != FINGERPRINT_OK) return;
+
+  ackEnroll(user_pk_global);
+  Serial.println("sent ackk");
+
+  check_enroll = false;
+}
+
+void onOTAStart() {
+  // Log when OTA has started
+  Serial.println("OTA update started!");
+  // <Add your own code here>
+}
+
+void onOTAProgress(size_t current, size_t final) {
+  // Log every 1 second
+  if (millis() - ota_progress_millis > 1000) {
+    ota_progress_millis = millis();
+    Serial.printf("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
+  }
+}
+
+void onOTAEnd(bool success) {
+  // Log when OTA has finished
+  if (success) {
+    Serial.println("OTA update finished successfully!");
+  } else {
+    Serial.println("There was an error during OTA update!");
+  }
+  // <Add your own code here>
 }
 
 String arr_to_str(uint8_t broadcastAddress[]) {
@@ -477,6 +540,7 @@ void loop() {
   while (!timeClient.update()) {
     timeClient.forceUpdate();
   }
+  ElegantOTA.loop();
   timer.run();  //Keep the timer in the loop function in order to update the time as soon as possible
   dnsServer.processNextRequest();
   // server.handleClient();
@@ -500,18 +564,7 @@ void loop() {
 
   check_enrol();
 
-  // int mData = 46;
-  // esp_err_t result = esp_now_send(0, (uint8_t *) &mData, sizeof(mData));
-
-  // if (result == ESP_OK) {
-  //   Serial.println("Sent with success");
-  //   displayScreen("Sent with success");
-  // }
-  // else {
-  //   Serial.println("Error sending the data");
-  //   displayScreen("Error sending the data");
-  // }
-  // delay(8000);
+  if(check_enroll) enrolling_process();
 }
 
 
@@ -540,8 +593,8 @@ void offline_attendance() {
 
 //************************************************************************
 void SPIFFS_format(AsyncWebServerRequest *request) {
-  if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
-    return request->requestAuthentication();
+  // if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
+  //   return request->requestAuthentication();
   display.clearDisplay();
   // display.setFont(ArialMT_Plain_10);
   display.print("Formating SPIFFS\n Please Wait....");
@@ -557,8 +610,8 @@ void SPIFFS_format(AsyncWebServerRequest *request) {
 }
 
 void scan_wifi(AsyncWebServerRequest *request) {
-  if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
-    return request->requestAuthentication();
+  // if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
+  //   return request->requestAuthentication();
   display.clearDisplay();
   //  display.setFont(ArialMT_Plain_10);
   display.print("Scanning WiFi Stations");
@@ -687,14 +740,14 @@ void Run_Station() {
     return;
   }
 
-  //  // Setup MDNS responder
-  //   if (!MDNS.begin(myHostname)) {
-  //     Serial.println("Error setting up MDNS responder!");
-  //   } else {
-  //     Serial.println("mDNS responder started");
-  //     // Add service to MDNS-SD
-  //     MDNS.addService("http", "tcp", 80);
-  //   }
+    //  // Setup MDNS responder
+    //   if (!MDNS.begin(myHostname)) {
+    //     Serial.println("Error setting up MDNS responder!");
+    //   } else {
+    //     Serial.println("mDNS responder started");
+    //     // Add service to MDNS-SD
+    //     MDNS.addService("http", "tcp", 80);
+    //   }
   //////////////////////////////////////////////check for Update all sketch  or spiffs from  external server ////////
 
   //  IPs = WiFi.localIP().toString();
@@ -777,12 +830,12 @@ void load_page(AsyncWebServerRequest *request) {
 }
 
 void loadFromSPIFFS(String path, AsyncWebServerRequest *request) {
-  String dataType = "text/plain";
+  String dataType = String();
   if (path.endsWith("/")) path += "index.htm";
   if (path.endsWith(".src")) path = path.substring(0, path.lastIndexOf("."));
   else if (path.endsWith(".htm")) dataType = "text/html";
   else if (path.endsWith(".css")) dataType = "text/css";
-  else if (path.endsWith(".js")) dataType = "application/javascript";
+  else if (path.endsWith(".js")) dataType = "text/javascript";
   else if (path.endsWith(".png")) dataType = "image/png";
   else if (path.endsWith(".gif")) dataType = "image/gif";
   else if (path.endsWith(".jpg")) dataType = "image/jpeg";
@@ -791,27 +844,15 @@ void loadFromSPIFFS(String path, AsyncWebServerRequest *request) {
   else if (path.endsWith(".pdf")) dataType = "application/pdf";
   else if (path.endsWith(".zip")) dataType = "application/zip";
 
-  if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
-    return request->requestAuthentication();
+  // if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
+  //   return request->requestAuthentication();
 
-  Serial.println("here1");
-  File dataFile = SPIFFS.open(path, "r");
-  Serial.println("here2");
-  if (dataFile) {
-    AsyncWebServerResponse *response = request->beginResponse(SPIFFS, path, String());
-    Serial.println("here3");
-    
-    request->send(response);
-    Serial.println("here4");
-    dataFile.close();
-    Serial.println("page is loaded !");
-  } else {
-    request->send(404, "text/plain", "File Not Found");  // Send 404 if file not found
-    Serial.println("File not found: " + path);
-  }
+  request->send(SPIFFS, path, dataType, false, processor);
 
-  // server.streamFile(dataFile, dataType);
-  // dataFile.close();
+    // server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
+  //   request->send(SPIFFS, "/style.css", "text/css");
+  // });
+
   Serial.println("page is loaded !");
 }
 
@@ -855,8 +896,8 @@ void read_SPIFFS(String fn) {
 
 /////////////////////////////////network config web from route
 void network_config(AsyncWebServerRequest *request) {
-  if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
-    return request->requestAuthentication();
+  // if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
+  //   return request->requestAuthentication();
   DHCP = request->arg("DHCP");
   IP_str = request->arg("IP");
   SUBNET_str = request->arg("SUBNET");
@@ -882,8 +923,8 @@ void network_config(AsyncWebServerRequest *request) {
 
 ///////////////////////auth config from web route
 void auth_config(AsyncWebServerRequest *request) {
-  if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
-    return request->requestAuthentication();
+  // if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
+  //   return request->requestAuthentication();
   USER_str = request->arg("USER");
   PASSWORD_str = request->arg("PASSWORD");
   DynamicJsonDocument jsonBuffer(256);
@@ -1442,15 +1483,10 @@ void checkEnroll(AsyncWebServerRequest *request) {
   // String pk = server.arg("pk");
   String user_pk = request->arg("user_pk");
   global_id = finger_id.toInt();
+  user_pk_global = user_pk;
   request->send(200, "text/plain", "enrolled");
 
-  uint8_t p = getFingerprintEnroll();
-  // Serial.println("res p is " + p);
-  // displayScreen("p is " + p);
-  if (p != FINGERPRINT_OK) return;
-
-  ackEnroll(user_pk);
-  Serial.println("sent ackk");
+  check_enroll = true;
 }
 
 void ackEnroll(String user_pk) {
