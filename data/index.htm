@@ -801,18 +801,19 @@ reqauth.send();
  
  
  
-   function responsescan(){
-	if (this.readyState == 4 && this.status ==200){
+function responsescan(){
+   if (this.readyState == 4 && this.status ==200){
       myObj = JSON.parse(this.responseText);
-	 for ( i=0; i < myObj.stations.length; i++){
-        var option = document.createElement("option");
-        option.value = myObj.stations[i];
-        option.innerHTML = myObj.stations[i];
-        combo.appendChild(option);
-}
-document.getElementById("SSID").value = myObj.stations[0];
-}
-   }  
+      for ( i=0; i < myObj.stations.length; i++){
+      var option = document.createElement("option");
+      option.value = myObj.stations[i];
+      option.innerHTML = myObj.stations[i];
+      combo.appendChild(option);
+      }
+      document.getElementById("SSID").value = myObj.stations[0];
+   }
+}  
+
 function processscan(){
 reqscan.open("POST", "/scan", true);
 reqscan.onreadystatechange = responsescan;
