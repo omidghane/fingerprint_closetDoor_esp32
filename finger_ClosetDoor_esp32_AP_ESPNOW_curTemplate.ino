@@ -1,49 +1,49 @@
 
 //NodeMCU--------------------------
-// #include <ArduinoTrace.h>
+#include <SimpleTimer.h>  //https://github.com/jfturcot/SimpleTimer
+#include <SPIFFS.h>
+#include <string>
+#include <SPI.h>
+#include <Wire.h>
+#include <TimeLib.h> //not necessary
+#include <esp_now.h>
+#include <ArduinoJson.h>
+#include <map>
+#include <esp_task_wdt.h> //not necessary
+
+//WiFi--------------------------
 #include <WiFiClient.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <mDNS.h>
 #include <HTTPClient.h>
-
 #include <ElegantOTA.h>
 #include <ESPAsyncWebServer.h>
+#include <DNSServer.h>
 // #include <ESPAsyncHTTPUpdateServer.h>
-
 // #include <WebServer.h>
 // #include <HTTPUpdateServer.h>
-#include <SimpleTimer.h>  //https://github.com/jfturcot/SimpleTimer
-#include <DNSServer.h>
 
-// #include <FS.h>
-#include <SPIFFS.h>
-#include <string> 
-//OLED-----------------------------
-#include <SPI.h>
-#include <Wire.h>
-#include "icons.h"
+//clock-----------------------------
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+//Adafruit-----------------------------
 #include <Adafruit_GFX.h>          //https://github.com/adafruit/Adafruit-GFX-Library
 #include <Adafruit_SSD1306.h>      //https://github.com/adafruit/Adafruit_SSD1306
 #include <Adafruit_Fingerprint.h>  //https://github.com/adafruit/Adafruit-Fingerprint-Sensor-Library
 #include <Adafruit_SH110X.h>
-#include <TimeLib.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
-#include <esp_now.h>
+//files-----------------------------
+#include "icons.h"
 
-#include <ArduinoJson.h>
-#include <map>
 //************************************************************************
 //Fingerprint scanner Pins
 #define Finger_Rx 14  //D5
 #define Finger_Tx 12  //D6
-// Declaration for SSD1306 display connected using software I2C pins are(22 SCL, 21 SDA)
+//Oled pins
 #define SCREEN_WIDTH 128  // OLED display width, in pixels
 #define SCREEN_HEIGHT 64  // OLED display height, in pixels
 #define OLED_RESET -1     // Reset pin # (or -1 if sharing Arduino reset pin)
 
-// #define RELAY D0
 //************************************************************************
 WiFiClient client;
 SimpleTimer timer;
@@ -65,15 +65,15 @@ const char *apsharedkey;
 const char *update_path = "/firmware";
 const char *update_username = "admin";
 const char *update_password = "admin";
-String sketch_Version = "V1.ino";
-String spiffs_Version = "V1.spiffs";
+std::string sketch_Version = "V1.ino";
+std::string spiffs_Version = "V1.spiffs";
 
 String device_token;
 String IP_str;
 String SUBNET_str;
 String GATEWAY_str;
 String DNS_str;
-String DHCP;
+std::string DHCP;
 String USER_str = "admin";
 String PASSWORD_str = "admin";
 String wifi_Mode;
@@ -103,20 +103,24 @@ bool device_Mode = false;  // Default Mode Enrollment
 bool firstConnect = false;
 uint8_t id;
 unsigned long previousMillis = 0;
+unsigned long lastResetTime = millis();
+const unsigned long resetInterval = 86400000;  // 24 hours
 
 bool dataSended = false;
 int global_id = 0;
-int global_fingerID;
+int global_fingerID; //not necessary
 String accessToken;
 String refreshToken;
 
+//File
 File myFile;
 char attendance_filename[] = "/attendance.txt";
+
 //DNS
 const byte DNS_PORT = 53;
 DNSServer dnsServer;
 
-
+//Time
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 unsigned long lastSend1;
@@ -128,15 +132,16 @@ const int16_t I2C_SLAVE = 0x08;
 bool check_enroll = false;
 String user_pk_global;
 
-uint8_t broadcastAddress1[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0xC3 };
-// uint8_t broadcastAddress1[] = {0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0x57};
+//------------------------ESPNOW
+// uint8_t broadcastAddress1[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0xC3 };
+uint8_t broadcastAddress1[] = { 0x48, 0xE7, 0x29, 0x54, 0xD2, 0x19 };
 uint8_t broadcastAddress2[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74 };
 uint8_t broadcastAddress3[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x70, 0x05 };
-uint8_t broadcastAddress4[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x72, 0x09 };
-// uint8_t broadcastAddress5[] = {0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74};
-// uint8_t broadcastAddress6[] = {0x84, 0xF3, 0xEB, 0xB4, 0x57, 0x74};
+// uint8_t broadcastAddress4[] = { 0x84, 0xF3, 0xEB, 0xB4, 0x6B, 0x57 };
+uint8_t broadcastAddress4[] = { 0x48, 0xE7, 0x29, 0x55, 0x8B, 0x72 };
+uint8_t broadcastAddress5[] = { 0x98, 0xCD, 0xAC, 0x26, 0x22, 0x3A };
+uint8_t broadcastAddress6[] = { 0x3C, 0x61, 0x05, 0xD1, 0xEE, 0x20 };
 uint8_t broadcastAddress[6];
-// 84:F3:EB:B4:70:05
 
 std::map<int, String> finger_closet;
 
@@ -149,13 +154,12 @@ message myMessage;
 
 const int ledPin = 2;
 String ledState;
-String processor(const String& var){
+String processor(const String &var) {
   Serial.println(var);
-  if(var == "STATE"){
-    if(digitalRead(ledPin)){
+  if (var == "STATE") {
+    if (digitalRead(ledPin)) {
       ledState = "ON";
-    }
-    else{
+    } else {
       ledState = "OFF";
     }
     Serial.print(ledState);
@@ -170,7 +174,7 @@ void setup() {
 
   WiFi.disconnect();
   Serial.begin(115200);
-  if (!SPIFFS.begin(true)) { // Format SPIFFS if mount fails
+  if (!SPIFFS.begin(true)) {  // Format SPIFFS if mount fails
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
@@ -179,16 +183,52 @@ void setup() {
 
   delay(100);
 
-  //-----------initiate OLED display-------------
   setOled();
-  //---------------------------------------------
-
-
   read_wifi_config();
   delay(2000);
 
-  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(SPIFFS, "/style.css", "text/css");
+  });
+
+  server.on("/iott.jpg", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/iott.jpg", "image/jpeg");
+  });
+
+  server.on("/WIFI.TXT", HTTP_POST, [](AsyncWebServerRequest *request) {
+    // Send the /WIFI.TXT file as the response
+    // The third argument "application/json" specifies that the content type is JSON
+    AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/WIFI.TXT", "application/json");
+
+    // Add CORS headers to the response
+    response->addHeader("Access-Control-Allow-Origin", "*");                    // Allow requests from any origin
+    response->addHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");  // Allowed HTTP methods
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type");        // Allowed headers
+    request->send(response);
+  });
+
+  server.on("/NET.TXT", HTTP_POST, [](AsyncWebServerRequest *request) {
+    // Send the /WIFI.TXT file as the response
+    // The third argument "application/json" specifies that the content type is JSON
+    AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/NET.TXT", "application/json");
+
+    // Add CORS headers to the response
+    response->addHeader("Access-Control-Allow-Origin", "*");                    // Allow requests from any origin
+    response->addHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");  // Allowed HTTP methods
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type");        // Allowed headers
+    request->send(response);
+  });
+
+  server.on("/AUTH.TXT", HTTP_POST, [](AsyncWebServerRequest *request) {
+    // Send the /WIFI.TXT file as the response
+    // The third argument "application/json" specifies that the content type is JSON
+    AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/AUTH.TXT", "application/json");
+
+    // Add CORS headers to the response
+    response->addHeader("Access-Control-Allow-Origin", "*");                    // Allow requests from any origin
+    response->addHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");  // Allowed HTTP methods
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type");        // Allowed headers
+    request->send(response);
   });
 
   server.on("/write", writeMonitor);
@@ -201,11 +241,11 @@ void setup() {
   server.on("/command", Command);
   server.on("/scan", scan_wifi);
   server.on("/format", SPIFFS_format);
-  server.on("/generate_204", load_page);
-  server.onNotFound(load_page);
+  server.on("/generate_204", loadFromSPIFFS);
+  server.onNotFound(loadFromSPIFFS);
 
   ElegantOTA.setAuth(update_username, update_username);
-  ElegantOTA.begin(&server);    // Start ElegantOTA
+  ElegantOTA.begin(&server);  // Start ElegantOTA
   // ElegantOTA callbacks
   ElegantOTA.onStart(onOTAStart);
   ElegantOTA.onProgress(onOTAProgress);
@@ -221,13 +261,13 @@ void setup() {
   display.setCursor(0, 0);
   display.setTextSize(1);
   display.clearDisplay();
-  display.println("Sketch v :" + sketch_Version);
-  display.println("SPIFFS v :" + spiffs_Version);
+  display.println(("Sketch v :" + sketch_Version).c_str());
+  display.println(("SPIFFS v :" + spiffs_Version).c_str());
 
   display.display();
   // delay(5000);
 
-  setFinger();
+  setFingerSensor();
 
   setESPNOW();
 
@@ -241,18 +281,20 @@ void setup() {
   finger_closet[2] = arr_to_str(broadcastAddress2);
   finger_closet[3] = arr_to_str(broadcastAddress3);
   finger_closet[4] = arr_to_str(broadcastAddress4);
-  // finger_closet[5] = "84:F3:EB:B4:57:74";
-  // finger_closet[6] = "84:F3:EB:B4:57:74";
+  finger_closet[5] = arr_to_str(broadcastAddress5);
+  finger_closet[6] = arr_to_str(broadcastAddress6);
+
+  // esp_task_wdt_init(10, true);
 }
 
-void enrolling_process(){
+void enrolling_process() {
+  check_enroll = false;
+
   uint8_t p = getFingerprintEnroll();
   if (p != FINGERPRINT_OK) return;
 
   ackEnroll(user_pk_global);
   Serial.println("sent ackk");
-
-  check_enroll = false;
 }
 
 void onOTAStart() {
@@ -321,21 +363,21 @@ void setESPNOW() {
     Serial.println("Failed to add peer 3");
     // return;
   }
-  // memcpy(peerInfo.peer_addr, broadcastAddress4, 6);
-  // if (esp_now_add_peer(&peerInfo) != ESP_OK){
-  //   Serial.println("Failed to add peer 4");
-  //   // return;
-  // }
-  // memcpy(peerInfo.peer_addr, broadcastAddress5, 6);
-  // if (esp_now_add_peer(&peerInfo) != ESP_OK){
-  //   Serial.println("Failed to add peer 5");
-  //   // return;
-  // }
-  // memcpy(peerInfo.peer_addr, broadcastAddress6, 6);
-  // if (esp_now_add_peer(&peerInfo) != ESP_OK){
-  //   Serial.println("Failed to add peer 6");
-  //   // return;
-  // }
+  memcpy(peerInfo.peer_addr, broadcastAddress4, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer 4");
+    // return;
+  }
+  memcpy(peerInfo.peer_addr, broadcastAddress5, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer 5");
+    // return;
+  }
+  memcpy(peerInfo.peer_addr, broadcastAddress6, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer 6");
+    // return;
+  }
 
   int wifiChannel = WiFi.channel();
   Serial.print("Wi-Fi Channel: ");
@@ -365,7 +407,6 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
   Serial.print(macStr);
   Serial.print(" send status:\t");
-  // ackOpenDoor(global_fingerID, status == ESP_NOW_SEND_SUCCESS, "");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   displayScreen(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
@@ -386,8 +427,8 @@ void setOled() {
   }
   display.clearDisplay();
   display.setCursor(0, 0);
-  display.println("Sketch v :" + sketch_Version);
-  display.println("SPIFFS v :" + spiffs_Version);
+  display.println(("Sketch v :" + sketch_Version).c_str());
+  display.println(("SPIFFS v :" + spiffs_Version).c_str());
 
   display.display();
   delay(5000);  // Pause for 2 seconds
@@ -455,7 +496,7 @@ void read_wifi_config() {
     return;
   }
   //////////////////////////////////////put json objects to String variables/////////
-  DHCP = jsonBuffer2["DHCP"].as<String>();
+  DHCP = jsonBuffer2["DHCP"].as<std::string>();
   IP_str = jsonBuffer2["IP"].as<String>();
   SUBNET_str = jsonBuffer2["SUBNET"].as<String>();
   GATEWAY_str = jsonBuffer2["GATEWAY"].as<String>();
@@ -510,7 +551,7 @@ void displayConnected() {
   display.display();
 }
 
-void setFinger() {
+void setFingerSensor() {
   Serial.println("setFinger func");
   finger.begin(57600);
   Serial.println("setFinger func2");
@@ -540,33 +581,38 @@ void loop() {
   while (!timeClient.update()) {
     timeClient.forceUpdate();
   }
-  ElegantOTA.loop();
-  timer.run();  //Keep the timer in the loop function in order to update the time as soon as possible
+  if (millis() - lastResetTime >= resetInterval) {
+    ESP.restart();  // Reset the ESP32 every 24 hours
+  }
+
+    .loop();
+  timer.run();  
   dnsServer.processNextRequest();
   // server.handleClient();
   // ftpSrv.handleFTP();
   //check if there's a connection to Wi-Fi or not
-  if (!WiFi.isConnected()) {
+  if (WiFi.status() != WL_CONNECTED && (millis() - previousMillis >= 20000)) {
     Serial.println("wifi disconnected");
-    if (millis() - previousMillis >= 800000) {
-      previousMillis = millis();
-      // connectToWiFi();    //Retry to connect to Wi-Fi
-      read_wifi_config();
-    }
+    previousMillis = millis();
+    // WiFi.disconnect();
+    read_wifi_config();
+    // run_wifi();
+    // WiFi.reconnect();
+    delay(3000);
     if (WiFi.isConnected()) {
-      Serial.println("is here runned or not!!!!");
+      Serial.println("offline_attendance sending to server");
 
       offline_attendance();
     }
   }
+  // checkServer();
   CheckFingerprint("");  //Check the sensor if the there a finger.
   delay(100);
 
-  check_enrol();
+  check_command_test();
 
-  if(check_enroll) enrolling_process();
+  if (check_enroll) enrolling_process();
 }
-
 
 void offline_attendance() {
   myFile = SPIFFS.open("/attendance.txt", "r");
@@ -658,7 +704,13 @@ void scan_wifi(AsyncWebServerRequest *request) {
     String stationObj = "";
     serializeJson(jsonBuffer, stationObj);
 
-    request->send(200, "text/plain", stationObj);
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", stationObj);
+
+    // Add CORS headers to the response
+    response->addHeader("Access-Control-Allow-Origin", "*");                    // Allow requests from any origin
+    response->addHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");  // Allowed HTTP methods
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type");        // Allowed headers
+    request->send(response);
   }
 }
 
@@ -731,6 +783,7 @@ void Run_Station() {
   if (i == 31) {
     display.clearDisplay();
     display.print("Couldn't\n Connect to\n " + String(ssid));
+    Serial.println("Couldn't\n Connect to\n " + String(ssid));
     display.display();
     delay(2000);
     Serial.println(ssid);
@@ -740,14 +793,14 @@ void Run_Station() {
     return;
   }
 
-    //  // Setup MDNS responder
-    //   if (!MDNS.begin(myHostname)) {
-    //     Serial.println("Error setting up MDNS responder!");
-    //   } else {
-    //     Serial.println("mDNS responder started");
-    //     // Add service to MDNS-SD
-    //     MDNS.addService("http", "tcp", 80);
-    //   }
+  //  // Setup MDNS responder
+  //   if (!MDNS.begin(myHostname)) {
+  //     Serial.println("Error setting up MDNS responder!");
+  //   } else {
+  //     Serial.println("mDNS responder started");
+  //     // Add service to MDNS-SD
+  //     MDNS.addService("http", "tcp", 80);
+  //   }
   //////////////////////////////////////////////check for Update all sketch  or spiffs from  external server ////////
 
   //  IPs = WiFi.localIP().toString();
@@ -775,14 +828,14 @@ void show_IPs() {
   display.println(("Subnet: ") + SUBNETs);
   display.println(("Gateway :") + GATEWAYs);
   display.println(("DNS IP: ") + DNSs);
-  display.println(("DHCP: ") + DHCP);
+  display.println(("DHCP: " + DHCP).c_str());
   display.display();
 
   Serial.println("MAC : " + WiFi.macAddress());
   Serial.println("IP Address : " + IPs);
   Serial.println("Subnet : " + GATEWAYs);
   Serial.println("DNS IP : " + DNSs);
-  Serial.println("DHCP : " + DHCP);
+  Serial.println(("DHCP : " + DHCP).c_str());
 
   delay(3000);
 }
@@ -803,7 +856,7 @@ void Run_Accesspoint() {
     delay(500);
   }
   Serial.print("ip is hhere ");
-  Serial.println(WiFi.localIP());
+  // Serial.println(WiFi.localIP());
 }
 
 void Run_Multi() {
@@ -822,14 +875,10 @@ void String_to_IP(String str, IPAddress &IP_addr) {
   IP_addr[3] = str.substring(c3 + 1, ln).toInt();
 }
 
-void load_page(AsyncWebServerRequest *request) {
+void loadFromSPIFFS(AsyncWebServerRequest *request) {
   Serial.println("page is being loaad ...");
-  loadFromSPIFFS(request->url(), request);
-  String url = request->url();
-  Serial.println(url);
-}
+  String path = request->url();
 
-void loadFromSPIFFS(String path, AsyncWebServerRequest *request) {
   String dataType = String();
   if (path.endsWith("/")) path += "index.htm";
   if (path.endsWith(".src")) path = path.substring(0, path.lastIndexOf("."));
@@ -849,11 +898,10 @@ void loadFromSPIFFS(String path, AsyncWebServerRequest *request) {
 
   request->send(SPIFFS, path, dataType, false, processor);
 
-    // server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-  //   request->send(SPIFFS, "/style.css", "text/css");
-  // });
-
   Serial.println("page is loaded !");
+
+  String url = request->url();
+  Serial.println(url);
 }
 
 ////////////////////////////////////////////wifi conf from Web route
@@ -898,7 +946,7 @@ void read_SPIFFS(String fn) {
 void network_config(AsyncWebServerRequest *request) {
   // if (!request->authenticate(USER_str.c_str(), PASSWORD_str.c_str()))
   //   return request->requestAuthentication();
-  DHCP = request->arg("DHCP");
+  DHCP = (request->arg("DHCP")).c_str();
   IP_str = request->arg("IP");
   SUBNET_str = request->arg("SUBNET");
   GATEWAY_str = request->arg("GATEWAY");
@@ -1014,7 +1062,7 @@ uint8_t readnumber(void) {
   return num;
 }
 
-void check_enrol() {
+void check_command_test() {
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
     command.trim();
@@ -1047,17 +1095,10 @@ void check_enrol() {
       }
     }
     if (command == "s") {
-      // myMessage.id = 10;
-      // esp_err_t result = esp_now_send(broadcastAddress1, (uint8_t *) &myMessage, sizeof(myMessage));
+      // Serial.println("Enter the fingerID to send:");
 
-      // if (result == ESP_OK) {
-      //   Serial.println("Sent with success");
-      // }
-      // else {
-      //   Serial.println("Error sending the data");
-      // }
-
-      CheckFingerprint2("");
+      // int id = readnumber();
+      SendFingerSlave(1);
     }
     if (command == "r") {
       // Serial.println("Enter the ID to send:");
@@ -1110,7 +1151,7 @@ void check_enrol() {
         String finger_id = myFile.readStringUntil('\n');
         Serial.println("finger_id is: " + finger_id);
         time.remove(time.length() - 1);
-        SendFingerprintIDV2(finger_id.toInt(), time);
+        SendFingerprint(finger_id.toInt(), time);
 
         delay(500);
       }
@@ -1190,41 +1231,13 @@ String time_format() {
 //***********************
 
 void CheckFingerprint(String send_time) {
-  //  unsigned long previousMillisM = millis();
-  //  Serial.println(previousMillisM);
   // If there no fingerprint has been scanned return -1 or -2 if there an error or 0 if there nothing, The ID start form 1 to 162
   // Get the Fingerprint ID from the Scanner
   FingerID = getFingerprintID();
   DisplayFingerprintID();
-
   if (FingerID > 0) {
-    // SendFingerprintIDV2(FingerID, send_time);  // Send the Fingerprint ID to the website.
-
-    // String macStr = GetDoorIP(FingerID);
-
     SendFingerSlave(FingerID);
-
-    // delay(2000);
   }
-}
-
-void CheckFingerprint2(String send_time) {
-  //  unsigned long previousMillisM = millis();
-  //  Serial.println(previousMillisM);
-  // If there no fingerprint has been scanned return -1 or -2 if there an error or 0 if there nothing, The ID start form 1 to 162
-  // Get the Fingerprint ID from the Scanner
-  FingerID = 56;
-  DisplayFingerprintID();
-
-  if (FingerID > 0) {
-    //    String macStr = GetDoorIP(FingerID);
-
-    SendFingerSlave(FingerID);
-
-    // delay(2000);
-  }
-
-  //  Serial.println(millis() - previousMillisM);
 }
 
 //************Display the fingerprint ID state on the OLED*************
@@ -1341,7 +1354,7 @@ void ackOpenDoor(int finger_id, bool ack, String send_time) {
   }
 }
 
-void SendFingerprintIDV2(int finger_id, String send_time) {
+void SendFingerprint(int finger_id, String send_time) {
   getAccessToken();
   if (WiFi.isConnected() && accessToken != "") {
     Serial.println("Sending the Fingerprint ID : ");
@@ -1523,10 +1536,11 @@ void ackEnroll(String user_pk) {
 
 void checkDelete(AsyncWebServerRequest *request) {
   String id = request->arg("emp_id");
-  int id_received = id.toInt();
-  Serial.println("id_received " + id_received);
+  // String user_pk = request->arg("user_pk");
+  int id_int = id.toInt();
+  Serial.println("id_received " + id_int);
 
-  int p = deleteFingerprint(id_received);
+  int p = deleteFingerprint(id_int);
   Serial.println("res " + p);
 
   request->send(200, "text/plain", "deleted");
@@ -1667,7 +1681,8 @@ uint8_t getFingerprintEnroll() {
   }
 
   unsigned long new_millis = millis();
-  while (p != FINGERPRINT_OK && (millis() - new_millis) < 30000) {
+  while (p != FINGERPRINT_OK) {
+    if(millis()-new_millis > 10000) return p; 
 
     p = finger.getImage();
     switch (p) {
@@ -1744,7 +1759,8 @@ uint8_t getFingerprintEnroll() {
   display.drawBitmap(34, 0, FinPr_scan_bits, FinPr_scan_width, FinPr_scan_height, WHITE);
   display.display();
   new_millis = millis();
-  while (p != FINGERPRINT_OK && (millis() - new_millis) <= 30000) {
+  while (p != FINGERPRINT_OK) {
+    if(millis()-new_millis > 10000) return p; 
 
     p = finger.getImage();
     switch (p) {
