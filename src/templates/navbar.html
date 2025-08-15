@@ -1,0 +1,37 @@
+<header>
+    <nav>
+        <ul class="nav-menu" dir="rtl">
+            <li>
+                {% if not request.user.is_anonymous and request.user.is_personnel %}
+                    <a href="{% url 'food:reserve' %}">غذا</a>
+                    <ul class="sub-menu">
+                        {% if 'food plan edit' in user_perms %}
+                            <li><a href="{% url 'food:item' %}">غذاها</a></li>
+                            <li><a href="{% url 'food:plan' %}">برنامه غذایی</a></li>
+                        {% endif %}
+                        <li>
+                            <a href="{% url 'food:reserve' %}">رزرو غذا</a>
+                            <!--
+                            <ul class="sub-menu">
+                                <li><a href="#">Variant 1</a></li>
+                                <li><a href="#">Variant 2</a></li>
+                            </ul>
+                            -->
+                        </li>
+                        {% if 'food reserve list' in user_perms %}
+                            <li><a href="{% url 'food:list'%}?date={{ today|date:"Y-m-d" }}">لیست رزروها</a></li>
+                        {% endif %}
+                    </ul>
+                {% endif %}
+            </li>
+            <li><a href="#">درباره ما</a></li>
+            <li><a href="#">ارتباط با ما</a></li>
+            {% if request.user.is_authenticated %}
+                <li><a href="{% url 'accounts:logout' %}">خروج</a></li>
+            {% else %}
+                <li><a href="{% url 'accounts:login' %}">ورود</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+</header>
+

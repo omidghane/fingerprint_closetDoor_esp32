@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interactive Lockers</title>
+    <style>
+      /* Optional: Add some styles to center the SVG */
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        background-color: #eff3ea;
+      }
+      
+      * {
+        margin: 0;
+        padding: 0;
+        text-decoration: none !important;
+        box-sizing: border-box;
+        list-style: none;
+        font-family: Vazir-Medium;
+      }
+      
+      @font-face {
+        font-family: Vazir-Medium;
+        src: url('../font/Vazir-Medium.eot') format('eot'), url('../font/Vazir-Medium.woff') format('woff'), url('../font/Vazir-Medium.woff2') format('woff2');
+        font-weight: normal;
+        font-style: normal;
+      }
+      
+      /* Styles for the modal menu */
+      .menu-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+      }
+      
+      .menu-content {
+        background-color: #eff3ea;
+        padding: 40px;
+        border-radius: 3px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        text-align: center;
+      }
+      
+      .menu-content p {
+        margin-bottom: 15px;
+        font-size: 16px;
+        color: #7e99a3;
+      }
+      
+      .menu-button {
+        display: block;
+        width: 100%;
+        margin: 10px 0;
+        padding: 10px;
+        font-size: 16px;
+        color: #4c585b;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      
+      .menu-button:hover {
+        background-color: #7e99a3;
+        border-radius: 30px;
+      }
+      
+      .close-button:hover {
+        background-color: #c0392b;
+      }
+      
+      .line {
+        height: 1px;
+        background-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000000 50%, rgba(0, 0, 0, 0) 100%);
+        opacity: 0.3;
+        width: 100%;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Your SVG File -->
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="718.123" height="209.768" viewBox="0 0 718.123 209.768">
+      <defs>
+        <linearGradient id="linear-gradient" x1="0.461" y1="-0.158" x2="0.665" y2="3.254" gradientUnits="objectBoundingBox">
+          <stop offset="0" stop-color="#fff" />
+          <stop offset="1" stop-color="#d3d2d1" />
+        </linearGradient>
+        <linearGradient id="linear-gradient-2" x1="0.5" y1="0.866" x2="0.5" y2="0.001" gradientUnits="objectBoundingBox">
+          <stop offset="0" stop-color="#fff" />
+          <stop offset="0.181" stop-color="#fafaf9" />
+          <stop offset="0.399" stop-color="#ecebeb" />
+          <stop offset="0.637" stop-color="#d5d4d2" />
+          <stop offset="0.887" stop-color="#b5b3b0" />
+          <stop offset="1" stop-color="#a5a29f" />
+        </linearGradient>
+        <linearGradient id="linear-gradient-3" x1="0.602" y1="-0.661" x2="0.21" y2="2.071" gradientUnits="objectBoundingBox">
+          <stop offset="0" stop-color="#5b544d" />
+          <stop offset="0.414" stop-color="#544c43" />
+          <stop offset="1" stop-color="#453b2f" />
+        </linearGradient>
+        <linearGradient id="linear-gradient-7" x1="0.5" x2="0.5" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0" stop-color="#b5b5b5" />
+          <stop offset="1" stop-color="#5b5b5b" />
+        </linearGradient>
+        <linearGradient id="linear-gradient-20" x1="0.5" x2="0.5" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0" stop-color="#d6d6d6" />
+          <stop offset="1" stop-color="#5b5b5b" />
+        </linearGradient>
+      </defs>
+      <g id="Group_34" data-name="Group 34" transform="translate(-277.5 -467.816)">
+        <path id="Path_31" data-name="Path 31" d="M60.413,162.741l2.882,2.922V72.2L60.413,76.56Z" transform="translate(686.253 408.011)" fill="#dbdbdb" style="mix-blend-mode: multiply;isolation: isolate" />
+        <path id="Path_30" data-name="Path 30" d="M60.413,162.741l2.882,2.922V72.2L60.413,76.56Z" transform="translate(451.2 408.011)" fill="#dbdbdb" style="mix-blend-mode: multiply;isolation: isolate" />
+        <path id="Path_35" data-name="Path 35" d="M60.413,162.741l2.882,2.922V72.2L60.413,76.56Z" transform="translate(451.2 501.476)" fill="#dbdbdb" style="mix-blend-mode: multiply;isolation: isolate" />
+        <path id="Path_34" data-name="Path 34" d="M60.413,162.741l2.882,2.922V72.2L60.413,76.56Z" transform="translate(686.253 501.476)" fill="#dbdbdb" style="mix-blend-mode: multiply;isolation: isolate" />
+        <g id="Group_28" data-name="Group 28">
+          <rect id="Rectangle_20" data-name="Rectangle 20" width="235.053" height="93.465" transform="translate(279.441 480.208)" fill="#f4f4ef" />
+          <rect id="کمد شماره 1" data-name="Rectangle 21" width="235.053" height="93.465" transform="translate(279.441 480.208)" fill="url(#linear-gradient)" />
+
+          <rect id="Rectangle_22" data-name="Rectangle 22" width="235.053" height="19.998" transform="translate(279.441 480.208)" fill="url(#linear-gradient-2)" style="mix-blend-mode: multiply;isolation: isolate" />
+          <g id="Group_19" data-name="Group 19" transform="translate(371.765 481.241)">
+            <path id="Path_17" data-name="Path 17" d="M50.751,83.79c-2.112,0-4.723-.635-5.928-2.41l-5.241-9.019H89.45l-5.442,8.611A6.512,6.512,0,0,1,78.28,83.79Z" transform="translate(-39.581 -72.335)" fill="#fff" />
+            <path id="Path_18" data-name="Path 18" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="#5b544d" />
+            <path id="Path_19" data-name="Path 19" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="url(#linear-gradient-3)" />
+          </g>
+          <g id="Group_27" data-name="Group 27" transform="translate(278 468.316)">
+            <rect id="Rectangle_18" data-name="Rectangle 18" width="236.494" height="11.892" fill="url(#linear-gradient-20)" stroke="#707070" stroke-width="1" />
+            <path id="Path_26" data-name="Path 26" d="M258.531,71.922H24.536V73.7H261.03Z" transform="translate(-24.536 -61.812)" fill="#d3d1cf" stroke="#707070" stroke-width="1" style="mix-blend-mode: multiply;isolation: isolate" />
+          </g>
+          <text id="_1" data-name="1" transform="translate(290.403 501.792)" fill="#0B666A" font-size="18" font-family="SegoeUI, Segoe UI">
+            <tspan x="0" y="0">1</tspan>
+          </text>
+        </g>
+        <g id="Group_33" data-name="Group 33">
+          <rect id="Rectangle_35" data-name="Rectangle 35" width="235.053" height="93.465" transform="translate(279.441 573.674)" fill="#f4f4ef" />
+          <rect id="کمد شماره 4" data-name="Rectangle 36" width="235.053" height="93.465" transform="translate(279.441 573.674)" fill="url(#linear-gradient)" />
+          <rect id="Rectangle_37" data-name="Rectangle 37" width="235.053" height="19.998" transform="translate(279.441 573.674)" fill="url(#linear-gradient-2)" style="mix-blend-mode: multiply;isolation: isolate" />
+          <g id="Group_24" data-name="Group 24" transform="translate(371.765 574.707)">
+            <path id="Path_17-2" data-name="Path 17" d="M50.751,83.79c-2.112,0-4.723-.635-5.928-2.41l-5.241-9.019H89.45l-5.442,8.611A6.512,6.512,0,0,1,78.28,83.79Z" transform="translate(-39.581 -72.335)" fill="#fff" />
+            <path id="Path_18-2" data-name="Path 18" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="#5b544d" />
+            <path id="Path_19-2" data-name="Path 19" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="url(#linear-gradient-3)" />
+          </g>
+          <g id="Rectangle_38" data-name="Rectangle 38" transform="translate(279.056 667.182)" stroke="#707070" stroke-width="1" opacity="0.5" fill="url(#linear-gradient-7)">
+            <rect width="235.453" height="10.402" stroke="none" />
+            <rect x="0.5" y="0.5" width="234.453" height="9.402" fill="none" />
+          </g>
+          <text id="_4" data-name="4" transform="translate(290.403 599.434)" fill="#0B666A" font-size="18" font-family="SegoeUI, Segoe UI">
+            <tspan x="0" y="0">4</tspan>
+          </text>
+        </g>
+        <g id="Group_29" data-name="Group 29">
+          <rect id="کمد شماره 2" data-name="Rectangle 23" width="235.053" height="93.465" transform="translate(514.494 480.208)" fill="#f4f4ef" />
+          <rect id="Rectangle_25" data-name="Rectangle 25" width="235.053" height="19.998" transform="translate(514.494 480.208)" fill="url(#linear-gradient-2)" style="mix-blend-mode: multiply;isolation: isolate" />
+          <g id="Group_20" data-name="Group 20" transform="translate(606.819 481.241)">
+            <path id="Path_17-3" data-name="Path 17" d="M50.751,83.79c-2.112,0-4.723-.635-5.928-2.41l-5.241-9.019H89.45l-5.442,8.611A6.512,6.512,0,0,1,78.28,83.79Z" transform="translate(-39.581 -72.335)" fill="#fff" />
+            <path id="Path_18-3" data-name="Path 18" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="#5b544d" />
+            <path id="Path_19-3" data-name="Path 19" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="url(#linear-gradient-3)" />
+          </g>
+          <g id="Group_26" data-name="Group 26" transform="translate(514.494 468.316)">
+            <rect id="Rectangle_18-2" data-name="Rectangle 18" width="233.613" height="11.892" fill="url(#linear-gradient-20)" stroke="#707070" stroke-width="1" />
+            <path id="Path_26-2" data-name="Path 26" d="M255.68,71.922H24.536V73.7H258.149Z" transform="translate(-24.536 -61.812)" fill="#d3d1cf" stroke="#707070" stroke-width="1" style="mix-blend-mode: multiply;isolation: isolate" />
+          </g>
+          <text id="_2" data-name="2" transform="translate(527.747 501.792)" fill="#0B666A" font-size="18" font-family="SegoeUI, Segoe UI">
+            <tspan x="0" y="0">2</tspan>
+          </text>
+        </g>
+        <g id="Group_32" data-name="Group 32">
+          <rect id="Rectangle_32" data-name="Rectangle 32" width="235.053" height="93.465" transform="translate(514.494 573.674)" fill="#f4f4ef" />
+          <rect id="کمد شماره 5" data-name="Rectangle 33" width="235.053" height="93.465" transform="translate(514.494 573.674)" fill="url(#linear-gradient)" />
+          <rect id="Rectangle_34" data-name="Rectangle 34" width="235.053" height="19.998" transform="translate(514.494 573.674)" fill="url(#linear-gradient-2)" style="mix-blend-mode: multiply;isolation: isolate" />
+          <g id="Group_23" data-name="Group 23" transform="translate(606.819 574.707)">
+            <path id="Path_17-4" data-name="Path 17" d="M50.751,83.79c-2.112,0-4.723-.635-5.928-2.41l-5.241-9.019H89.45l-5.442,8.611A6.512,6.512,0,0,1,78.28,83.79Z" transform="translate(-39.581 -72.335)" fill="#fff" />
+            <path id="Path_18-4" data-name="Path 18" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="#5b544d" />
+            <path id="Path_19-4" data-name="Path 19" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="url(#linear-gradient-3)" />
+          </g>
+          <g id="Rectangle_39" data-name="Rectangle 39" transform="translate(514.508 667.182)" stroke="#707070" stroke-width="1" opacity="0.5" fill="url(#linear-gradient-7)">
+            <rect width="235.453" height="10.402" stroke="none" />
+            <rect x="0.5" y="0.5" width="234.453" height="9.402" fill="none" />
+          </g>
+          <text id="_5" data-name="5" transform="translate(527.747 599.434)" fill="#0B666A" font-size="18" font-family="SegoeUI, Segoe UI">
+            <tspan x="0" y="0">5</tspan>
+          </text>
+        </g>
+        <g id="Group_30" data-name="Group 30">
+          <rect id="Rectangle_26" data-name="Rectangle 26" width="235.053" height="93.465" transform="translate(746.666 480.208)" fill="#f4f4ef" />
+          <rect id="کمد شماره 3" data-name="Rectangle 27" width="235.053" height="93.465" transform="translate(746.666 480.208)" fill="url(#linear-gradient)" />
+          <path id="Path_32" data-name="Path 32" d="M60.413,162.741l2.882,2.922V72.2L60.413,76.56Z" transform="translate(918.425 408.011)" fill="#dbdbdb" style="mix-blend-mode: multiply;isolation: isolate" />
+          <rect id="Rectangle_28" data-name="Rectangle 28" width="235.053" height="19.998" transform="translate(746.666 480.208)" fill="url(#linear-gradient-2)" style="mix-blend-mode: multiply;isolation: isolate" />
+          <g id="Group_21" data-name="Group 21" transform="translate(838.99 481.241)">
+            <path id="Path_17-5" data-name="Path 17" d="M50.751,83.79c-2.112,0-4.723-.635-5.928-2.41l-5.241-9.019H89.45l-5.442,8.611A6.512,6.512,0,0,1,78.28,83.79Z" transform="translate(-39.581 -72.335)" fill="#fff" />
+            <path id="Path_18-5" data-name="Path 18" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="#5b544d" />
+            <path id="Path_19-5" data-name="Path 19" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="url(#linear-gradient-3)" />
+          </g>
+          <g id="Group_25" data-name="Group 25" transform="translate(748.107 468.316)">
+            <rect id="Rectangle_18-3" data-name="Rectangle 18" width="245.902" height="11.892" fill="url(#linear-gradient-20)" stroke="#707070" stroke-width="1" />
+            <path id="Path_26-3" data-name="Path 26" d="M267.84,71.922H24.536V73.7h245.9Z" transform="translate(-24.536 -61.812)" fill="#d3d1cf" stroke="#707070" stroke-width="1" style="mix-blend-mode: multiply;isolation: isolate" />
+          </g>
+          <text id="_3" data-name="3" transform="translate(759.747 501.792)" fill="#0B666A" font-size="18" font-family="SegoeUI, Segoe UI">
+            <tspan x="0" y="0">3</tspan>
+          </text>
+        </g>
+        <g id="Group_31" data-name="Group 31">
+          <rect id="Rectangle_29" data-name="Rectangle 29" width="235.053" height="93.465" transform="translate(746.666 573.674)" fill="#f4f4ef" />
+          <rect id="کمد شماره 6" data-name="Rectangle 30" width="235.053" height="93.465" transform="translate(746.666 573.674)" fill="url(#linear-gradient)" />
+          <path id="Path_33" data-name="Path 33" d="M60.413,162.741l2.882,2.922V72.2L60.413,76.56Z" transform="translate(918.425 501.476)" fill="#dbdbdb" style="mix-blend-mode: multiply;isolation: isolate" />
+          <rect id="Rectangle_31" data-name="Rectangle 31" width="235.053" height="19.998" transform="translate(746.666 573.674)" fill="url(#linear-gradient-2)" style="mix-blend-mode: multiply;isolation: isolate" />
+          <g id="Group_22" data-name="Group 22" transform="translate(838.99 574.707)">
+            <path id="Path_17-6" data-name="Path 17" d="M50.751,83.79c-2.112,0-4.723-.635-5.928-2.41l-5.241-9.019H89.45l-5.442,8.611A6.512,6.512,0,0,1,78.28,83.79Z" transform="translate(-39.581 -72.335)" fill="#fff" />
+            <path id="Path_18-6" data-name="Path 18" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="#5b544d" />
+            <path id="Path_19-6" data-name="Path 19" d="M48.2,81.745H77.362A4.9,4.9,0,0,0,81.5,79.283l4.231-6.926H39.842l4.231,6.926A4.879,4.879,0,0,0,48.2,81.745Z" transform="translate(-38.151 -72.357)" fill="url(#linear-gradient-3)" />
+          </g>
+          <g id="Rectangle_40" data-name="Rectangle 40" transform="translate(749.961 667.182)" stroke="#707070" stroke-width="1" opacity="0.5" fill="url(#linear-gradient-20)">
+            <rect width="231.67" height="10.402" stroke="none" />
+            <rect x="0.5" y="0.5" width="230.67" height="9.402" fill="none" />
+          </g>
+          <text id="_6" data-name="6" transform="translate(759.747 599.434)" fill="#0B666A" font-size="18" font-family="SegoeUI, Segoe UI">
+            <tspan x="0" y="0">6</tspan>
+          </text>
+        </g>
+      </g>
+    </svg>
+    <!-- Modal -->
+    <div id="menu-modal" class="menu-modal">
+      <div class="menu-content">
+        <p id="locker-info">Locker Info</p>
+        <div class="line"></div>
+
+        <button class="menu-button" id="reserve-locker">رزرو کمد</button>
+
+        <button class="menu-button" id="cancel-reservation">لغو رزرو</button>
+        
+        <button class="menu-button close-button">بستن</button>
+
+      </div>
+    </div>
+
+    
+    <!-- JavaScript Code -->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // List of locker IDs
+            const lockerIds = [
+                "کمد شماره 1",
+                "کمد شماره 2",
+                "کمد شماره 3",
+                "کمد شماره 4",
+                "کمد شماره 5",
+                "کمد شماره 6"
+            ];
+
+            // Modal elements 
+            const modal = document.getElementById("menu-modal");
+            const lockerInfo = document.getElementById("locker-info");
+            const reserveButton = document.getElementById("reserve-locker");
+            const cancelReservationButton = document.getElementById("cancel-reservation");
+            const viewStatusButton = document.getElementById("view-status");
+            const closeButton = document.querySelector(".close-button");
+
+            let selectedLocker = null;
+
+            // Initialize lockers with their states
+            lockerIds.forEach((id) => {
+                const locker = document.getElementById(id);
+
+                if (locker) {
+
+                    // Add click event listener
+                    locker.addEventListener("click", () => {
+                        if (locker.dataset.state === "unavailable") {
+                            alert("این کمد قابل انتخاب نیست.");
+                            return; // Exit the function and prevent further action
+                        }
+                        
+                        selectedLocker = locker;
+                        const lockerNumber = locker.id.replace("Rectangle_", "Locker ");
+
+                        const number = lockerNumber.match(/\d+/)[0]; // Extracts the first sequence of digits
+                        const doorIdInputs = document.querySelectorAll('.doorIdInput'); // Select all elements with the class
+                        doorIdInputs.forEach(input => {
+                            input.value = number; // Set the value for each input
+                        });
+                        
+                        lockerInfo.textContent = `${lockerNumber}`;
+                        modal.style.display = "flex";
+                    });
+                }
+            });
+
+            // Reserve locker
+            reserveButton.addEventListener("click", () => {
+              // Set the selected locker state and style
+              selectedLocker.dataset.state = "selected";
+              selectedLocker.style.fill = "#8174A0"; // Selected state color
+              
+              alert(`${selectedLocker.id} :انگشت خود را ثبت نمایید`);
+          
+              // Prepare the form data
+              const number = selectedLocker.id.match(/\d+/)[0];
+              const formData = new FormData();
+              formData.append("employee_code", "{{ profile.employee_code }}");
+              formData.append("mac_id", "{{ device.mac_id }}");
+              formData.append("door_id", number);
+          
+              // Send the request using fetch
+              fetch("{% url 'accounts:accounts-api:doorinsert' %}", {
+                  method: "POST",
+                  headers: {
+                      "X-CSRFToken": "{{ csrf_token }}", // Include CSRF token for Django
+                  },
+                  body: formData,
+              })
+              .then((response) => {
+                  if (!response.ok) {
+                      throw new Error(`HTTP error! Status: ${response.status}`);
+                  }
+                  return response.json();
+              })
+          
+              // Close the modal
+              closeModal();
+          });
+          
+
+            // Cancel reservation
+            cancelReservationButton.addEventListener("click", () => {
+              
+                if (selectedLocker.dataset.state === "empty") {
+                    alert("رکورد رزروی وجود ندارد!");
+                } else {
+                    selectedLocker.dataset.state = "empty";
+                    selectedLocker.style.fill = "#86D293"; // Back to empty color
+
+                    // Prepare the form data
+                    const number = selectedLocker.id.match(/\d+/)[0];
+                    const formData = new FormData();
+                    formData.append("employee_code", "{{ profile.employee_code }}");
+                    formData.append("mac_id", "{{ device.mac_id }}");
+                    formData.append("door_id", number);
+                
+                    // Send the request using fetch
+                    fetch("{% url 'accounts:accounts-api:doordelete' %}", {
+                        method: "POST",
+                        headers: {
+                            "X-CSRFToken": "{{ csrf_token }}", // Include CSRF token for Django
+                        },
+                        body: formData,
+                    })
+                    .then((response) => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                
+                   
+                }
+
+                closeModal();
+            });
+
+            // Close modal
+            closeButton.addEventListener("click", closeModal);
+
+            function closeModal() {
+                modal.style.display = "none";
+                selectedLocker = null;
+            }
+
+            // Close modal when clicking outside of content
+            modal.addEventListener("click", (event) => {
+                if (event.target === modal) {
+                    closeModal();
+                }
+            });
+
+            // Example function to set a locker's state
+            function setLockerState(lockerId, state) {
+                const locker = document.getElementById(lockerId);
+
+                if (locker) {
+                    locker.dataset.state = state;
+                    switch (state) {
+                        case "empty":
+                            locker.style.fill = "#86D293"; // Empty state color
+                            break;
+                        case "unavailable":
+                            locker.style.fill = "#F95454"; // Unavailable state color
+                            break;
+                        case "selected":
+                            locker.style.fill = "#8174A0"; // Selected state color
+                            break;
+                    }
+                }
+            }
+            //setLockerState("کمد شماره 1", "unavailable")
+            const closets = {{ closets|safe }};
+
+            lockerIds.forEach((lockId, i) => {
+                setLockerState(lockId, closets[i]);
+            });
+
+            alert("جهت راحتی گوشی را در حالت افقی قرار دهید.");
+        });
+    </script>
+  </body>
+</html>

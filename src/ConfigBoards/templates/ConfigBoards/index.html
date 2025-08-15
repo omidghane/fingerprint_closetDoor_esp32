@@ -1,0 +1,404 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static '/css/style.css' %}"> 
+    
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"
+        integrity="sha512-5Hs3dF2AEPkpNAR7UiOHba+lRSJNeM2ECkwxUIxC1Q/FLycGTbNapWXB4tP889k5T5Ju8fs4b1P5z/iB4nMfSQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="{% static 'css/bootstrap-grid.rtl.min.css' %}">
+    <title>Document</title>
+</head>
+
+<body>
+    <div id="Panel_Layer">
+        <div id="Banner2"><span>IOT Admin Panel</span></div>
+        <div id="Close_Button">
+            <a href="#" id="close-button">
+                <i class="fa-solid fa-xmark fa-xl"></i>
+            </a>
+        </div>
+        <div id="wb_CssMenu2">
+            <ul>
+                <li><a href="#wifisetupbm" target="_self">WiFi&nbsp;Setup</a></li>
+                <li><a href="#NetworksetupBM" target="_self">Network&nbsp;setup</a></li>
+                <li><a href="#AuthBM" target="_self">Authenticat&nbsp;Setup</a></li>
+                <li><a href="#wb_LayoutGrid6" target="_self">Send&nbsp;Commands</a></li>
+            </ul>
+        </div>
+    </div>
+    </div>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12" id="Layer1">
+                <div id="wb_Text7">
+                    <i class="fa fa-wifi fa-2xl" style="color: #f2f2f2;"></i>
+
+                    <span id="wb_uid4">
+                        <h4>IOT Web Panel</h4>
+                    </span>
+                </div>
+                <div id="wb_Shape2">
+                </div>
+                <div class="nav-items">
+                    <a href="#" id="toggle-button">
+                        <div id="Shape2_text">
+                            <span id="wb_uid5"><i class="fa-solid fa-bars fa-sm"></i></span>
+                        </div>
+                    </a>
+
+                    <a href="" onclick="window.location.href='./temp.htm';return false;">
+                        <div id="Shape3_text"><span id="wb_uid6">
+                                <h2>Temp monitor</h2>
+                            </span></div>
+                    </a>
+                    <a href="" onclick="window.location.href='./switch.htm';return false;">
+                        <div id="Shape4_text"><span id="wb_uid7">
+                                <h2>IOT Web Switch</h2>
+                            </span></div>
+                    </a>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div id="wb_NetworksetupBM">
+        <a id="NetworksetupBM">&nbsp;</a>
+    </div>
+    <div id="wb_AuthBM">
+        <a id="AuthBM">&nbsp;</a>
+    </div>
+
+    <div id="wb_LayoutGrid1">
+        <div id="LayoutGrid1">
+            <div class="row">
+                <div class="col-1">
+                    <div id="wb_wifisetupbm">
+                        <a id="wifisetupbm">&nbsp;</a>
+
+                    </div>
+                </div>
+                <div class="col-2">
+                    <hr id="Line28">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-12" id="wb_LayoutGrid2">
+                <form name="LayoutGrid2" method="post" action="{% url 'ConfigBoards:wificonfig' %}" enctype="multipart/form-data"
+                    id="LayoutGrid2">
+                    {% csrf_token %}
+                    <input type="hidden" name="mac_id" value="{{mac_id}}">
+                    <div class="row">
+                        <div id="wb_Text5">
+                            <span id="wb_uid1">
+                                <h4>WiFi Setup</h4>
+                            </span>
+                        </div>
+                        <div class="form-img-1">
+                            <picture id="wb_Picture1">
+                                <img src="{% static 'img/iott.jpg' %}" id="Picture1" alt="" srcset="">
+                            </picture>
+                        </div>
+                        <div class="wifiSetup-form col-6 m-2">
+
+                            <select name="Combobox1" size="1" id="Combobox1" onchange="combotossid()" tabindex="0"
+                                autofocus title="WiFi Stations">
+                                <option>Please click scan network</option>
+                            </select>
+                            <label class="m-2" for="" id="scannet_Label" onclick="removeOptions();return false;">Scan
+                                Network
+                            </label>
+                            <label for="" id="Label7">Station Mode </label>
+                            <div id="wb_stationbt">
+                                <input type="radio" id="stationbt" name="Wifimode" value="WIFI_STA" checked tabindex="1" title="Station Mode"><label for="stationbt"></label>
+                            </div>
+                            <label for="" id="Label11">Access point Mode </label>
+                            <div id="wb_APbt">
+                                <input type="radio" id="APbt" name="Wifimode" value="WIFI_AP" tabindex="2"><label
+                                    for="APbt"></label>
+                            </div>
+                            <label for="" id="Label12">Multi Mode </label>
+                            <div id="wb_multibt">
+                                <input type="radio" id="multibt" name="Wifimode" value="WIFI_AP_STA" tabindex="3"><label
+                                    for="multibt"></label>
+                            </div>
+                        </div>
+                        <div class="wifiSetup-form col-5 m-2">
+                            <input type="text" id="SSID" name="SSID" value="" tabindex="4" autocomplete="off"
+                                spellcheck="false" placeholder="*Enter Your access point SSID">
+                            <input type="password" id="presharedkey" name="presharedkey" value="" tabindex="5"
+                                autocomplete="off" spellcheck="false" placeholder="*Enter Your AP PresharedKey">
+                            <input type="text" id="APname" name="APname" value="" tabindex="6" autocomplete="off"
+                                spellcheck="false" placeholder="*Enter ESP AP Name">
+                            <input type="password" id="APsharedkey" name="APsharedkey" value="" tabindex="7"
+                                autocomplete="off" spellcheck="false"
+                                placeholder="*Enter ESP AP Preshared Key over 8 char">
+                            <div class="btn-3"> <input type="submit" id="Button3" name="" value="Save WiFi Setup"
+                                    tabindex="8">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <hr id="Line28">
+    <hr id="Line28">
+    <hr id="Line28">
+    <hr id="Line28">
+
+
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-12" id="wb_LayoutGrid4">
+                <form name="LayoutGrid4" method="post" action="{% url 'ConfigBoards:networkconfig' %}" enctype="multipart/form-data"
+                    id="LayoutGrid4" onsubmit="return ValidateLayoutGrid4(this)">
+                    {% csrf_token %}
+                    <input type="hidden" name="mac_id" value="{{mac_id}}">
+                    <div class="mt-3" id="wb_Text3">
+                        <span id="wb_uid2">
+                            <h4>Network Setup</strong></h4>
+                    </div>
+                    <div class="">
+                        <label for="" id="Label9">DHCP </label>
+                        <div id="wb_DHCP">
+                            <input type="checkbox" id="DHCP" name="DHCP" value="on" tabindex="9"><label
+                                for="DHCP"></label>
+                        </div>
+                    </div>
+                    <div class="networkSetup-from col-5 d-flex flex-column">
+                        <input type="text" id="IP" name="IP" value="" tabindex="10" autocomplete="off"
+                            spellcheck="false" placeholder="*Enter IP Address">
+                        <input type="text" id="SUBNET" name="SUBNET" value="" tabindex="11" autocomplete="off"
+                            spellcheck="false" placeholder="*Enter Subnet Mask">
+                        <input type="text" id="GATEWAY" name="GATEWAY" value="" tabindex="12" autocomplete="off"
+                            spellcheck="false" placeholder="*Enter Default Gateway">
+                        <input type="text" id="DNS" name="DNS" value="" tabindex="13" autocomplete="off"
+                            spellcheck="false" placeholder="*Enter DNS Address">
+                        <div class="btn-1"> <input type="submit" id="Button1" name="" value="Save Network Setup"
+                                tabindex="14">
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+    <hr id="Line28">
+    <hr id="Line28">
+    <hr id="Line28">
+    <hr id="Line28">
+
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-12" id="wb_LayoutGrid5">
+                <form name="LayoutGrid5" method="post" action="{% url 'ConfigBoards:authconfig' %}" enctype="multipart/form-data"
+                    id="LayoutGrid5" onsubmit="return ValidateLayoutGrid5(this)">
+                    {% csrf_token %}
+                    <input type="hidden" name="mac_id" value="{{mac_id}}">
+                    <div class="mb-3 mt-3" id="wb_Text2">
+                        <span id="wb_uid3"><strong>Authentication Setup</strong></span>
+                    </div>
+                    <div class="authenticationSetup-form col-5 d-flex flex-column">
+                        <input type="text" id="USER" name="USER" value="" tabindex="15" autocomplete="off"
+                            spellcheck="false" placeholder="*Enter New User Name">
+                        <input type="password" id="PASSWORD" name="PASSWORD" value="" tabindex="16" autocomplete="off"
+                            spellcheck="false" placeholder="*Enter  New Password">
+                        <input type="password" id="CONFIRMPASSWORD" name="CONFIRMPASSWORD" value="" tabindex="17"
+                            autocomplete="off" spellcheck="false" placeholder="*Confirm Password">
+                        <div class="btn-2">
+                            <input type="submit" id="Button2" name="" value="Change User and Password" tabindex="18">
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+    <hr id="Line28">
+    <hr id="Line28">
+    <hr id="Line28">
+    <hr id="Line28">
+
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-12" id="wb_LayoutGrid6">
+                <form name="LayoutGrid6" method="post" action="{% url 'ConfigBoards:command' %}" enctype="multipart/form-data" id="LayoutGrid6" onsubmit="return ValidateLayoutGrid6(this)">
+                    {% csrf_token %}
+                    <input type="hidden" name="mac_id" value="{{mac_id}}">
+                    <div class="mt-3 mb-3" id="wb_Text1">
+                        <span id="wb_uid8"><strong>Send Commands</strong></span>
+                    </div>
+                    <div class="send-forms col-6">
+                        <label for="" id="Label19">Factory Default </label>
+                        <div id="wb_RadioButton4">
+                            <input type="radio" id="RadioButton4" name="ESP" value="default" tabindex="19"><label
+                                for="RadioButton4"></label>
+                        </div>
+                        <label for="" id="Label20">Reboot </label>
+                        <div id="wb_RadioButton5">
+                            <input type="radio" id="RadioButton5" name="ESP" value="reboot" checked tabindex="20"><label
+                                for="RadioButton5"></label>
+                        </div>
+                        <div class="btn-4 mb-3 mt-3">
+                            <input type="submit" id="Button4" name="" value="Send Command" tabindex="21">
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <hr id="Line28">
+    <hr id="Line28">
+    <hr id="Line28">
+    <hr id="Line28">
+
+    <script src="{% static '/js/IOT.js' %}"></script>
+    <script>
+        ////////////////////////////////////////////Lesson21 Script///////////
+        var reqwifi = new XMLHttpRequest();
+        var reqnet = new XMLHttpRequest();
+        var reqauth = new XMLHttpRequest();
+        var reqscan = new XMLHttpRequest();
+        var combo=document.getElementById("Combobox1");
+        var myObj;
+        var i;
+        
+        function responsewifi(){
+            console.log("responsewifi func");
+            if (this.readyState == 4 && this.status ==200){
+              myObj = JSON.parse(this.responseText);
+              document.getElementById("SSID").value = myObj.SSID;
+              document.getElementById("presharedkey").value = myObj.presharedkey;
+              document.getElementById("APname").value = myObj.APname;
+              document.getElementById("APsharedkey").value = myObj.APsharedkey;
+              var wifimodes = myObj.wifimode;
+              if (wifimodes == "WIFI_STA") {
+                document.getElementById("stationbt").checked = true;
+                console.log("WIFI_STA mode is set, station button checked.");
+            }
+            
+            if (wifimodes == "WIFI_AP") {
+                document.getElementById("APbt").checked = true;
+                console.log("WIFI_AP mode is set, AP button checked.");
+            }
+            
+            if (wifimodes == "WIFI_AP_STA") {
+                document.getElementById("multibt").checked = true;
+                console.log("WIFI_AP_STA mode is set, multi button checked.");
+            }
+        }
+        }
+         function processwificonfig(){
+            const device_ip = "{{ device_ip|escapejs  }}";
+            reqwifi.open("POST", "http://"+ device_ip +"/WIFI.TXT", true);
+            reqwifi.onreadystatechange = responsewifi;
+            reqwifi.send();
+        
+         }
+         
+         
+         
+         function responsenetwork(){
+            if (this.readyState == 4 && this.status ==200){
+              myObj = JSON.parse(this.responseText);
+              document.getElementById("IP").value = myObj.IP
+              document.getElementById("SUBNET").value = myObj.SUBNET;
+              document.getElementById("GATEWAY").value = myObj.GATEWAY;
+              document.getElementById("DNS").value = myObj.DNS;
+              var dhcp=myObj.DHCP;
+              if (dhcp == "on"){
+               document.getElementById("DHCP").checked = true;
+              }
+        }
+        }
+        function processnetworkconfig(){
+            const device_ip = "{{ device_ip|escapejs  }}";
+            reqnet.open("POST", "http://"+ device_ip +"/NET.TXT", true);
+            reqnet.onreadystatechange = responsenetwork;
+            reqnet.send();
+        
+         }
+         
+         
+          function responseauth(){
+            if (this.readyState == 4 && this.status ==200){
+              myObj = JSON.parse(this.responseText);
+              document.getElementById("USER").value = myObj.USER
+              document.getElementById("PASSWORD").value = myObj.PASSWORD;
+              
+        }
+        }
+        function processauthconfig(){
+            const device_ip = "{{ device_ip|escapejs  }}";
+            reqauth.open("POST", "http://"+ device_ip +"/AUTH.TXT", true);
+        reqauth.onreadystatechange = responseauth;
+        reqauth.send();
+        
+         }
+         
+         
+         
+        function responsescan(){
+           if (this.readyState == 4 && this.status ==200){
+              myObj = JSON.parse(this.responseText);
+              for ( i=0; i < myObj.stations.length; i++){
+              var option = document.createElement("option");
+              option.value = myObj.stations[i];
+              option.innerHTML = myObj.stations[i];
+              combo.appendChild(option);
+              }
+              document.getElementById("SSID").value = myObj.stations[0];
+           }
+        }  
+        
+        function processscan(){
+            const device_ip = "{{ device_ip|escapejs  }}";
+            reqscan.open("POST", "http://"+ device_ip +"/scan", true);
+        reqscan.onreadystatechange = responsescan;
+        reqscan.send();
+        
+         }
+         
+         function removeOptions()
+        {
+           
+            var i;
+            for(i = combo.options.length - 1 ; i >= 0 ; i--)
+            {
+                combo.remove(i);
+            }
+            processscan();
+        }
+        
+         
+         function combotossid(){
+            
+            var combo = document.getElementById("Combobox1");
+            var SSIDtext = document.getElementById("SSID");
+            
+            SSIDtext.value=combo.value;
+            
+        }
+        window.onload=loading_scripts;
+        function loading_scripts(){
+        processwificonfig();
+        processnetworkconfig();
+        processauthconfig();
+        }
+        
+        </script>
+</body>
+
+</html>

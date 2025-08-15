@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %} Login Phone {% endblock %}
+{% block extra_css %}
+    <link rel="stylesheet" href={% static "css/phone.css" %}>
+{% endblock %}
+
+{% block content %}
+    <section>
+        <div class="imgBx">
+            <img src="{% static 'img/warehouse2.jpg' %}">
+            <span class="copyright">.کلیه حقوق این وب سایت متعلق به شرکت میلان پارس فارمد است</span>
+        </div>
+        <div class="contentBx">
+            <div class="formBx">
+                <div class="form-name">
+                    <h2 class="signin">ثبت نام</h2>
+                    <a></a>
+                    <h2>ورود</h2>
+                </div>
+                <form class="custom-form" method="POST" action={% url 'accounts:login-phone' %}>
+                    <span class="head-input">شماره موبایل خود را وارد نمایید</span>
+                    <div class="inputBx">
+                        <span>شماره موبایل</span>
+                        <input type="text" name="phone" pattern="[0-9]*" inputmode="numeric">
+                    </div>
+
+                    <div class="inputBx">
+                        <input type="submit" value="ادامه" name="">
+                        <div class="milanlogo">
+                            <img class="milan" src={% static "img/healthontheway.png" %}>
+                        </div>
+                        <div class="foot-input">.ثبت نام شما به معنای پذیرش قوانین و مقررات میلان پارس فارمد است</div>
+                    </div>
+                    {% csrf_token %}
+                </form>
+            </div>
+        </div>
+    </section>
+    
+{% endblock %}

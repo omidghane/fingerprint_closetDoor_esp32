@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Finger Door Insert</title>
+</head>
+<body>
+    <h1>User Finger Door Insert</h1>
+    <form method="post" action="{% url 'accounts:accounts-api:doorinsert' %}">
+        {% csrf_token %}
+        <!-- <label for="employee_code">Employee Code:</label> -->
+        <!-- <input type="text" id="employee_code" name="employee_code" required><br><br> -->
+        <p>Welcome, {{ user.first_name }} {{ user.last_name }}!</p>
+        <p>device: {{ device.description }}</p> 
+        <p>{{ max_id }} </P>
+    
+        <input type="hidden" id="employee_code" name="employee_code" value="{{ user.employee_code }}" readonly>
+
+        <input type="hidden" id="mac_id" name="mac_id" value="{{ device.mac_id }}" readonly>
+
+        <input type="hidden" id="door_id" name="door_id" value="{{ max_id }}" readonly>
+    
+        
+        <button type="submit">Submit</button>
+    </form>
+</body>
+</html>

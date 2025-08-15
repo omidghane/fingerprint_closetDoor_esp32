@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %} Verify {% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href={% static 'css/verify.css' %}>
+{% endblock %}
+
+{% block content %}
+    <section>
+        <div class="imgBx">
+            <img src={% static 'img/warehouse2.jpg' %} >
+            <span class="copyright">.کلیه حقوق این وب سایت متعلق به شرکت میلان پارس فارمد است</span>
+        </div>
+        <div class="contentBx">
+            <div class="formBx">
+                <div class="form-name">
+                    <h2 class="signin">ثبت نام</h2>
+                    <a></a>
+                    <h2>ورود</h2>
+                </div>
+                <form class="custom-form" method="POST" action={% url "accounts:verify" phone %}>
+                    <span class="head-input">کد اعتباری را وارد نمایید</span>
+                    <div class="inputBx">
+                        <span>:کد ارسال شده به شماره {{ phone }} را وارد نمایید</span>
+                        <div class="verification-code-input">
+                            <input type="text" maxlength="1" class="code-digit" name="code1"/>
+                            <input type="text" maxlength="1" class="code-digit" name="code2"/>
+                            <input type="text" maxlength="1" class="code-digit" name="code3"/>
+                            <input type="text" maxlength="1" class="code-digit" name="code4"/>
+                            <input type="text" maxlength="1" class="code-digit" name="code5"/>
+                            <input type="text" maxlength="1" class="code-digit" name="code6"/>
+                        </div>
+                    </div>
+
+                    <div class="inputBx">
+                        <input type="submit" value="ادامه" name="">
+                        <div class="milanlogo">
+                            <img class="milan" src={% static 'img/healthontheway.png' %} >                         </div>
+                        <div class="foot-input">.ثبت نام شما به معنای پذیرش قوانین و مقررات میلان پارس فارمد است</div>
+                    </div>
+                    {% csrf_token %}
+                </form>
+            </div>
+        </div>
+    </section>
+
+
+{% endblock %}
